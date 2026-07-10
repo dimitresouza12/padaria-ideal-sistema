@@ -1,0 +1,155 @@
+/**
+ * Modelagem de domínio.
+ *
+ * Os campos usam snake_case propositalmente: são exatamente as colunas que as
+ * tabelas do Supabase (PostgreSQL) terão. Assim, quando a camada de mock for
+ * trocada pelo cliente do Supabase, o formato dos objetos não muda — os
+ * componentes continuam consumindo os mesmos campos.
+ *
+ * Convenção de tabelas no Supabase (futuro):
+ *   usuarios · produtos · comercios · vendas · metas
+ * "AlertaPagamento" é uma projeção derivada de `vendas` (uma view), não uma
+ * tabela própria.
+ */
+
+export type Perfil = 'admin' | 'vendedor';
+export type FormaPagamento = 'a_vista' | 'a_prazo';
+export type StatusVenda = 'pago' | 'pendente' | 'vencido';
+export type ModoPreco = 'atacado' | 'varejo';
+
+export interface Usuario {
+  id: string;
+  nome: string;
+  email: string;
+  perfil: Perfil;
+  taxa_comissao: number; // fração aplicada sobre a MARGEM da venda (ex.: 0.14 = 14%)
+  meta_individual: number; // meta de faturamento do vendedor no período (R$)
+  ativo: boolean;
+  criado_em: string; // ISO 8601
+}
+
+export interface Produto {
+  id: string;
+  nome: string;
+  sku: string;
+  categoria: string | null;
+  preco_custo: number;
+  preco_varejo: number;
+  preco_atacado: number;
+  qtd_min_atacado: number; // limite que dispara o preço de atacado (padrão 10)
+  ativo: boolean;
+}
+
+export interface Comercio {
+  id: string;
+  razao_social: string;
+  cnpj: string;
+  telefone: string;
+  regiao: string;
+  ativo: boolean;
+}
+
+export interface Venda {
+  id: string;
+  vendedor_id: string;
+  comercio_id: string;
+  produto_id: string;
+  quantidade: number;
+  preco_unitario: number;
+  modo_preco: ModoPreco;
+  valor_total: number;
+  custo_total: number;
+  margem: number;
+  forma_pagamento: FormaPagamento;
+  prazo_dias: number | null;
+  data_venda: string; // ISO date (YYYY-MM-DD)
+  data_vencimento: string | null;
+  status: StatusVenda;
+  criado_em: string;
+}
+
+/** Projeção derivada de `vendas` para a tela de Lembretes (recebíveis em aberto). */
+export interface AlertaPagamento {
+  venda_id: string;
+  comercio_id: string;
+  vendedor_id: string;
+  valor: number;
+  data_vencimento: string;
+  status: Extract<StatusVenda, 'pendente' | 'vencido'>;
+  dias_atraso: number;
+}
+
+/**
+ * Dimensão escolhida pelo gestor para compor uma Meta:
+ *   'geral'       -> um valor único, definido diretamente.
+ *   'por_produto' -> a soma das metas individuais de `MetaProduto` (ver abaixo).
+ * `valor_alvo` sempre reflete o número final usado no cálculo de progresso,
+ * qualquer que seja a dimensão escolhida.
+ */
+export type TipoMeta = 'geral' | 'por_produto';
+
+/**
+ * Periodicidade da meta. O gestor pode ter várias metas simultâneas com
+ * janelas diferentes (ex.: uma mensal e uma semanal correndo em paralelo) —
+ * por isso `data_inicio`/`data_fim` são explícitos em vez de um rótulo fixo
+ * como 'YYYY-MM'. 'personalizado' permite qualquer intervalo escolhido à mão.
+ */
+export type Periodicidade = 'semanal' | 'mensal' | 'trimestral' | 'personalizado';
+
+export interface Meta {
+  id: string;
+  nome: string; // rótulo livre, ex.: "Meta de Julho", "Meta da semana"
+  periodicidade: Periodicidade;
+  data_inicio: string; // YYYY-MM-DD, inclusive
+  data_fim: string; // YYYY-MM-DD, inclusive
+  dimensao: TipoMeta;
+  valor_alvo: number;
+  /** Só uma meta é principal por vez — é ela que alimenta o KPI de destaque do Dashboard. */
+  principal: boolean;
+}
+
+/** Meta de faturamento por produto, associada a uma Meta específica (via meta_id). */
+export interface MetaProduto {
+  id: string;
+  meta_id: string;
+  produto_id: string;
+  valor_alvo: number;
+}
+
+/**
+ * Pedido de acesso enviado pela tela de login por quem ainda não tem conta.
+ * Fica pendente até o gestor aprovar (vira Usuario + credencial) ou recusar.
+ */
+export type StatusSolicitacao = 'pendente' | 'aprovado' | 'recusado';
+
+export interface SolicitacaoAcesso {
+  id: string;
+  nome: string;
+  email: string;
+  /** Em produção nunca fica em texto puro — aqui só demonstra o fluxo (ver docs/plano-implementacao.md). */
+  senha: string;
+  status: StatusSolicitacao;
+  criado_em: string;
+}
+
+/** Ponto do gráfico de evolução mensal. */
+export interface PontoHistorico {
+  rotulo: string; // 'Jan', 'Fev', ...
+  total: number;
+}
+
+/** Payload aceito ao registrar uma venda (o serviço deriva preço/margem/status). */
+export interface NovaVendaInput {
+  vendedor_id: string;
+  comercio_id: string;
+  produto_id: string;
+  quantidade: number;
+  /** Só usado quando quantidade < qtd_min_atacado (preço de varejo negociado). */
+  preco_unitario?: number;
+  forma_pagamento: FormaPagamento;
+  prazo_dias?: number;
+}
+
+export interface Sessao {
+  usuario: Usuario;
+}

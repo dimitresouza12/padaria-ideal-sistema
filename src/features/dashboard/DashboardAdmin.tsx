@@ -1,0 +1,236 @@
+import { useMemo } from 'react';
+import { useDataStore } from '@/store/useDataStore';
+import { Card, StatCard, SectionLabel, Tag } from '@/components/ui';
+import { IconAlerta } from '@/components/icons';
+import { fmtBRLCompact, fmtData, fmtPct } from '@/lib/format';
+
+export function DashboardAdmin() {
+  const { vendas, comercios, usuarios, metas, historico } = useDataStore();
+
+  const metaPrincipal = metas.find((m) => m.principal) ?? null;
+  const valorAlvo = metaPrincipal?.valor_alvo ?? 0;
+
+  const m = useMemo(() => {
+    const faturamento = vendas.reduce((a, v) => a + v.valor_total, 0);
+    const custo = vendas.reduce((a, v) => a + v.custo_total, 0);
+    const margem = faturamento - custo;
+    const margemPct = faturamento ? (margem / faturamento) * 100 : 0;
+    const ticket = vendas.length ? faturamento / vendas.length : 0;
+    const mesAnterior = historico.at(-1)?.total ?? 0;
+    const deltaPct = mesAnterior ? ((faturamento - mesAnterior) / mesAnterior) * 100 : 0;
+
+    // "% vs Meta" compara contra o faturamento DENTRO da janela de datas da
+    // meta principal (que pode ser semanal, trimestral etc.) — não contra o
+    // faturamento do período inteiro, senão uma meta semanal de R$25 mil
+    // pareceria "batida em 340%" comparada ao total do mês inteiro.
+    const faturamentoNaJanela = metaPrincipal
+      ? vendas
+          .filter((v) => v.data_venda >= metaPrincipal.data_inicio && v.data_venda <= metaPrincipal.data_fim)
+          .reduce((a, v) => a + v.valor_total, 0)
+      : faturamento;
+    const metaPct = valorAlvo ? (faturamentoNaJanela / valorAlvo) * 100 : 0;
+    const gap = valorAlvo - faturamentoNaJanela;
+
+    return { faturamento, margem, margemPct, ticket, deltaPct, metaPct, gap, pedidos: vendas.length };
+  }, [vendas, historico, valorAlvo, metaPrincipal]);
+
+  const ranking = useMemo(() => {
+    return usuarios
+      .filter((u) => u.perfil === 'vendedor')
+      .map((u) => {
+        const total = vendas.filter((v) => v.vendedor_id === u.id).reduce((a, v) => a + v.valor_total, 0);
+        const pct = u.meta_individual ? (total / u.meta_individual) * 100 : 0;
+        return { id: u.id, nome: u.nome, total, pct };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [usuarios, vendas]);
+
+  const regioes = useMemo(() => {
+    const mapa: Record<string, number> = {};
+    vendas.forEach((v) => {
+      const reg = comercios.find((c) => c.id === v.comercio_id)?.regiao ?? 'Outros';
+      mapa[reg] = (mapa[reg] ?? 0) + v.valor_total;
+    });
+    return Object.entries(mapa).sort((a, b) => b[1] - a[1]);
+  }, [vendas, comercios]);
+
+  const vencidos = vendas.filter((v) => v.status === 'vencido');
+  const totalVencido = vencidos.reduce((a, v) => a + v.valor_total, 0);
+
+  const acimaMeta = m.metaPct >= 100;
+  const subiu = m.deltaPct >= 0;
+
+  const serie = [...historico, { rotulo: 'Jul', total: m.faturamento, atual: true }];
+  const maxSerie = Math.max(...serie.map((s) => s.total), valorAlvo) * 1.08;
+  const maxVend = Math.max(...ranking.map((r) => r.total), 1);
+  const maxReg = Math.max(...regioes.map((r) => r[1]), 1);
+
+  return (
+    <div className="flex flex-col gap-5">
+      {vencidos.length > 0 && (
+        <Card className="flex items-center gap-3.5 border-l-4 border-l-bad-strong bg-bad-tint px-5 py-3.5">
+          <IconAlerta size={19} className="text-bad-strong" />
+          <div className="flex-1 text-[13px] font-semibold text-[#7c1c15]">
+            {fmtBRLCompact(totalVencido)} em recebíveis vencidos — {vencidos.length} venda(s) a prazo em atraso.
+          </div>
+        </Card>
+      )}
+
+      {/* KPIs */}
+      <div>
+        <SectionLabel>Indicadores do período — Julho 2026</SectionLabel>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            rotulo="Faturamento"
+            valor={fmtBRLCompact(m.faturamento)}
+            faixa={subiu ? 'good' : 'bad'}
+            contexto={
+              <span className="flex items-center gap-1.5">
+                <Tag tone={subiu ? 'good' : 'bad'}>{subiu ? '▲' : '▼'} {fmtPct(Math.abs(m.deltaPct))}</Tag>
+                vs. mês anterior
+              </span>
+            }
+          />
+          <Card className={`border-l-[3px] p-4 ${acimaMeta ? 'border-l-good' : 'border-l-bad-strong'}`}>
+            <div className="text-xs font-semibold text-ink-soft">
+              % vs {metaPrincipal?.nome ?? 'Meta do Período'}
+            </div>
+            <div className="mt-1.5 text-[27px] font-extrabold tracking-tight">{fmtPct(m.metaPct)}</div>
+            <div className="my-2.5 h-1.5 overflow-hidden rounded-full bg-[#eceae3]">
+              <div
+                className={`h-full rounded-full ${acimaMeta ? 'bg-good' : 'bg-bad-strong'}`}
+                style={{ width: `${Math.min(m.metaPct, 100)}%` }}
+              />
+            </div>
+            <div className="text-xs text-ink-muted">
+              {acimaMeta ? `Meta superada em ${fmtBRLCompact(Math.abs(m.gap))}` : `Faltam ${fmtBRLCompact(m.gap)} para a meta`}
+              {metaPrincipal && metaPrincipal.periodicidade !== 'mensal' && (
+                <> · janela de {fmtData(metaPrincipal.data_inicio)} a {fmtData(metaPrincipal.data_fim)}</>
+              )}
+            </div>
+          </Card>
+          <StatCard
+            rotulo="Margem"
+            valor={fmtPct(m.margemPct)}
+            faixa="good"
+            contexto={`${fmtBRLCompact(m.margem)} de margem bruta no período`}
+          />
+          <StatCard
+            rotulo="Ticket Médio"
+            valor={fmtBRLCompact(m.ticket)}
+            faixa="accent"
+            contexto={`${m.pedidos} pedido(s) registrado(s)`}
+          />
+        </div>
+      </div>
+
+      {/* Evolução mensal */}
+      <Card className="p-5">
+        <div className="text-sm font-bold">Evolução mensal de vendas</div>
+        <div className="mb-4 text-xs text-ink-muted">
+          Faturamento por mês · Julho é o período corrente (atualiza conforme vendas são registradas).
+        </div>
+        <div className="overflow-x-auto">
+          <div className="flex h-[180px] min-w-[460px] items-end gap-4">
+            {serie.map((s) => {
+              const alt = (s.total / maxSerie) * 100;
+              const atual = 'atual' in s && s.atual;
+              return (
+                <div key={s.rotulo} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
+                  <div className="text-[11px] font-bold tabular-nums text-ink-soft">{fmtBRLCompact(s.total)}</div>
+                  <div
+                    className={`w-full max-w-[46px] rounded-t ${atual ? 'bg-accent ring-2 ring-accent-wash' : 'bg-[#dbcfbc]'}`}
+                    style={{ height: `${alt}%`, minHeight: 3 }}
+                  />
+                  <div className={`text-[11.5px] font-semibold ${atual ? 'text-accent-dark' : 'text-ink-muted'}`}>
+                    {s.rotulo}
+                    {atual ? ' (atual)' : ''}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+
+      {/* Rankings */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Card className="p-5">
+          <div className="text-sm font-bold">Ranking de funcionários</div>
+          <div className="mb-4 text-xs text-ink-muted">Faturamento no período · marca = % da meta individual.</div>
+          <div className="flex flex-col gap-3">
+            {ranking.map((r, i) => (
+              <div key={r.id}>
+                <div className="mb-1 flex items-center justify-between text-[12.5px]">
+                  <span className="font-semibold">{r.nome}</span>
+                  <span className="flex items-center gap-1.5 font-bold tabular-nums">
+                    {fmtBRLCompact(r.total)} <Tag tone={r.pct >= 100 ? 'good' : 'bad'}>{fmtPct(r.pct)}</Tag>
+                  </span>
+                </div>
+                <div className="h-5 rounded-md bg-plane">
+                  <div
+                    className={`h-full rounded ${i === 0 ? 'bg-accent-dark' : 'bg-accent'}`}
+                    style={{ width: `${Math.min((r.total / maxVend) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="text-sm font-bold">Faturamento por região</div>
+          <div className="mb-4 text-xs text-ink-muted">Distribuição geográfica das vendas do período.</div>
+          <div className="flex flex-col gap-3">
+            {regioes.map(([reg, total], i) => (
+              <div key={reg}>
+                <div className="mb-1 flex items-center justify-between text-[12.5px]">
+                  <span className="font-semibold">{reg}</span>
+                  <span className="font-bold tabular-nums">{fmtBRLCompact(total)}</span>
+                </div>
+                <div className="h-5 rounded-md bg-plane">
+                  <div
+                    className={`h-full rounded ${i === 0 ? 'bg-accent-dark' : 'bg-accent'}`}
+                    style={{ width: `${(total / maxReg) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Insights */}
+      <div>
+        <SectionLabel>Conclusões do período</SectionLabel>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Card className="border-t-[3px] border-t-good p-4">
+            <div className="mb-2 text-[12.5px] font-bold text-good">O que cresceu</div>
+            <p className="text-[12.5px] leading-relaxed text-ink-soft">
+              Faturamento {fmtPct(Math.abs(m.deltaPct))} {subiu ? 'acima' : 'abaixo'} do mês anterior.
+              {ranking[0] && ` ${ranking[0].nome} lidera com ${fmtBRLCompact(ranking[0].total)} (${fmtPct(ranking[0].pct)} da meta individual).`}
+              {regioes[0] && ` ${regioes[0][0]} é a região de maior faturamento.`}
+            </p>
+          </Card>
+          <Card className="border-t-[3px] border-t-warn p-4">
+            <div className="mb-2 text-[12.5px] font-bold text-warn">O que preocupa</div>
+            <p className="text-[12.5px] leading-relaxed text-ink-soft">
+              {acimaMeta ? 'A meta já foi atingida, mas ' : `A meta está em ${fmtPct(m.metaPct)} — faltam ${fmtBRLCompact(m.gap)}. `}
+              {vencidos.length > 0
+                ? `Há ${fmtBRLCompact(totalVencido)} vencidos em ${vencidos.length} venda(s) a prazo.`
+                : 'Não há recebíveis vencidos no momento.'}
+            </p>
+          </Card>
+          <Card className="border-t-[3px] border-t-accent p-4">
+            <div className="mb-2 text-[12.5px] font-bold text-accent-dark">Qual ação tomar</div>
+            <p className="text-[12.5px] leading-relaxed text-ink-soft">
+              {vencidos.length > 0 && 'Cobrar os recebíveis vencidos com prioridade (aba Lembretes). '}
+              {regioes.at(-1) && `Reforçar a presença comercial em ${regioes.at(-1)![0]}, região de menor faturamento. `}
+              {ranking.at(-1) && `Apoiar ${ranking.at(-1)!.nome} para recuperar o ritmo de meta.`}
+            </p>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
