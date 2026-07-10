@@ -13,14 +13,17 @@ executivo para o gestor.
 O entregável principal é o app **React (Vite + TypeScript + Tailwind)** na raiz do
 repositório — estratégia *frontend-first*: toda a persistência hoje é simulada em
 `localStorage` através de uma camada de mock, estruturada com os mesmos campos que o
-Supabase usará quando o backend real entrar (ver `docs/plano-implementacao.md`, dentro de
-`prototipo-html/`).
+Supabase usará quando o backend real entrar (ver `docs/plano-implementacao.md`).
 
 | Caminho | O que é |
 |---|---|
 | `src/` | Código-fonte do app React (types, services/mock, store Zustand, componentes, features por aba). |
 | `public/` | `logoIdeal.PNG` e `logo-wheat-icon.png` — logo real do cliente e o ícone de trigo recortado dele. |
-| `prototipo-html/` | **Protótipo anterior** (HTML + Tailwind CDN + JS puro, arquivo único) — mantido como referência histórica do design e das regras de negócio antes da migração para React. Inclui também o plano de implementação original (`docs/plano-implementacao.md`) e um protótipo ainda mais antigo, só do dashboard (`docs/dashboard-padaria-atacado.html`). |
+| `docs/plano-implementacao.md` | Plano de arquitetura para a versão de produção: stack recomendada, modelagem de dados completa e cronograma por fases. |
+
+O protótipo estático anterior (HTML + Tailwind CDN + JS puro, arquivo único) foi removido
+depois da migração para React — continua disponível no histórico do Git (commit
+`acc1c13` e seguintes) caso seja preciso consultar o design original.
 
 ## Como rodar
 
@@ -120,7 +123,7 @@ Paleta "Padaria Premium" — abandona o azul genérico de tecnologia:
 
 Este protótipo faz a validação de login **no navegador**, só para demonstrar o fluxo de
 UI. Isso é inseguro por definição e **não deve ir para produção assim**. O plano em
-`prototipo-html/docs/plano-implementacao.md` detalha a arquitetura real:
+`docs/plano-implementacao.md` detalha a arquitetura real:
 
 - Senhas com hash **bcrypt** (cost ≥ 12) ou Argon2id — nunca texto puro nem validação
   client-side.
@@ -135,4 +138,4 @@ UI. Isso é inseguro por definição e **não deve ir para produção assim**. O
 
 Next.js + Tailwind + shadcn/ui no front (já em uso), Supabase (PostgreSQL + Auth + RLS +
 Realtime + pg_cron) no back, Vercel para hospedagem. Detalhamento completo em
-`prototipo-html/docs/plano-implementacao.md`.
+`docs/plano-implementacao.md`.
