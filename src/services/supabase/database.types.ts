@@ -9,6 +9,17 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+type UsuarioRow = {
+  ativo: boolean
+  criado_em: string
+  email: string
+  id: string
+  meta_individual: number
+  nome: string
+  perfil: Database["public"]["Enums"]["perfil"]
+  taxa_comissao: number
+}
+
 export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
@@ -45,17 +56,17 @@ export type Database = {
       credenciais: {
         Row: {
           login: string
-          senha: string
+          senha_hash: string
           usuario_id: string
         }
         Insert: {
           login: string
-          senha: string
+          senha_hash: string
           usuario_id: string
         }
         Update: {
           login?: string
-          senha?: string
+          senha_hash?: string
           usuario_id?: string
         }
         Relationships: [
@@ -197,7 +208,7 @@ export type Database = {
           email: string
           id: string
           nome: string
-          senha: string
+          senha_hash: string
           status: Database["public"]["Enums"]["status_solicitacao"]
         }
         Insert: {
@@ -205,7 +216,7 @@ export type Database = {
           email: string
           id?: string
           nome: string
-          senha: string
+          senha_hash: string
           status?: Database["public"]["Enums"]["status_solicitacao"]
         }
         Update: {
@@ -213,22 +224,13 @@ export type Database = {
           email?: string
           id?: string
           nome?: string
-          senha?: string
+          senha_hash?: string
           status?: Database["public"]["Enums"]["status_solicitacao"]
         }
         Relationships: []
       }
       usuarios: {
-        Row: {
-          ativo: boolean
-          criado_em: string
-          email: string
-          id: string
-          meta_individual: number
-          nome: string
-          perfil: Database["public"]["Enums"]["perfil"]
-          taxa_comissao: number
-        }
+        Row: UsuarioRow
         Insert: {
           ativo?: boolean
           criado_em?: string
@@ -335,7 +337,36 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      aprovar_solicitacao: {
+        Args: { p_id: string; p_meta: number; p_taxa: number }
+        Returns: UsuarioRow
+      }
+      criar_funcionario: {
+        Args: {
+          p_email: string
+          p_meta: number
+          p_nome: string
+          p_senha: string
+          p_taxa: number
+        }
+        Returns: UsuarioRow
+      }
+      fazer_login: {
+        Args: { p_login: string; p_senha: string }
+        Returns: UsuarioRow[]
+      }
+      recusar_solicitacao: { Args: { p_id: string }; Returns: undefined }
       reset_dados_exemplo: { Args: Record<PropertyKey, never>; Returns: undefined }
+      solicitar_acesso: {
+        Args: { p_email: string; p_nome: string; p_senha: string }
+        Returns: {
+          criado_em: string
+          email: string
+          id: string
+          nome: string
+          status: Database["public"]["Enums"]["status_solicitacao"]
+        }[]
+      }
     }
     Enums: {
       forma_pagamento: "a_vista" | "a_prazo"

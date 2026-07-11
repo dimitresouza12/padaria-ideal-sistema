@@ -24,7 +24,6 @@ import type {
   Venda,
 } from '@/types';
 import { resolverPreco } from '@/lib/pricing';
-import { primeiroNome } from '@/lib/format';
 import { supabase } from './supabaseClient';
 import type { Database } from './database.types';
 
@@ -79,20 +78,13 @@ async function normalizarVencidos(): Promise<void> {
  * API
  * ------------------------------------------------------------------ */
 export const supabaseApi = {
-  /* auth — login = primeiro nome da pessoa (minúsculo) */
+  /* auth — login = primeiro nome da pessoa. A verificação da senha (bcrypt)
+   * acontece no Postgres, via função SECURITY DEFINER: a tabela `credenciais`
+   * e o hash nunca são expostos à API. Retorna 0 ou 1 linha. */
   async login(login: string, senha: string): Promise<Sessao> {
-    const cred = maybe(
-      await supabase
-        .from('credenciais')
-        .select('senha, usuario_id')
-        .eq('login', login.trim().toLowerCase())
-        .maybeSingle(),
-    );
-    if (!cred || cred.senha !== senha) throw new Error('Credenciais inválidas');
-
-    const usuario = maybe(
-      await supabase.from('usuarios').select('*').eq('id', cred.usuario_id).maybeSingle(),
-    );
+    const { data, error } = await supabase.rpc('fazer_login', { p_login: login, p_senha: senha });
+    if (error) throw new Error(error.message);
+    const usuario = data?.[0];
     if (!usuario) throw new Error('Credenciais inválidas');
     return { usuario };
   },
@@ -117,39 +109,18 @@ export const supabaseApi = {
     taxa_comissao: number;
     meta_individual: number;
   }): Promise<Usuario> {
-    const login = primeiroNome(input.nome).toLowerCase();
-    const existente = maybe(
-      await supabase.from('credenciais').select('login').eq('login', login).maybeSingle(),
-    );
-    if (existente) {
-      throw new Error(
-        `Já existe um funcionário com o login "${primeiroNome(input.nome)}". Ajuste o nome (ex.: acrescente o sobrenome) para diferenciar.`,
-      );
-    }
-
-    const usuario = row(
-      await supabase
-        .from('usuarios')
-        .insert({
-          nome: input.nome.trim(),
-          email: input.email.trim().toLowerCase(),
-          perfil: 'vendedor',
-          taxa_comissao: input.taxa_comissao,
-          meta_individual: input.meta_individual,
-          ativo: true,
-        })
-        .select('*')
-        .single(),
-    );
-
-    row(
-      await supabase
-        .from('credenciais')
-        .insert({ login, senha: input.senha, usuario_id: usuario.id })
-        .select('login')
-        .single(),
-    );
-    return usuario;
+    // Cria usuário + credencial (senha em hash) numa transação no servidor;
+    // a checagem de login duplicado e o hash ficam na função do Postgres.
+    const { data, error } = await supabase.rpc('criar_funcionario', {
+      p_nome: input.nome,
+      p_email: input.email,
+      p_senha: input.senha,
+      p_taxa: input.taxa_comissao,
+      p_meta: input.meta_individual,
+    });
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Não foi possível cadastrar o funcionário.');
+    return data;
   },
   async atualizarFuncionario(
     id: string,
@@ -167,84 +138,46 @@ export const supabaseApi = {
     return usuario;
   },
 
-  /* solicitações de acesso */
+  /* solicitações de acesso — a senha é gravada em hash pela função; a resposta
+   * nunca traz o hash (a função retorna só colunas seguras). */
   async solicitarAcesso(nome: string, email: string, senha: string): Promise<SolicitacaoAcesso> {
-    const login = primeiroNome(nome).toLowerCase();
-    const cred = maybe(
-      await supabase.from('credenciais').select('login').eq('login', login).maybeSingle(),
-    );
-    if (cred) {
-      throw new Error(
-        `Já existe um funcionário com o login "${primeiroNome(nome)}". Peça ao gestor para cadastrar você com um nome diferenciado.`,
-      );
-    }
-    const pendentes = rows(
-      await supabase.from('solicitacoes_acesso').select('nome').eq('status', 'pendente'),
-    );
-    if (pendentes.some((s) => primeiroNome(s.nome).toLowerCase() === login)) {
-      throw new Error('Já existe uma solicitação pendente com esse primeiro nome.');
-    }
-
-    return row(
-      await supabase
-        .from('solicitacoes_acesso')
-        .insert({
-          nome: nome.trim(),
-          email: email.trim().toLowerCase(),
-          senha,
-          status: 'pendente',
-        })
-        .select('*')
-        .single(),
-    );
+    const { data, error } = await supabase.rpc('solicitar_acesso', {
+      p_nome: nome,
+      p_email: email,
+      p_senha: senha,
+    });
+    if (error) throw new Error(error.message);
+    const row0 = data?.[0];
+    if (!row0) throw new Error('Não foi possível enviar a solicitação.');
+    return { ...row0, senha: '' };
   },
   async listarSolicitacoes(): Promise<SolicitacaoAcesso[]> {
-    return rows(
+    // A coluna senha_hash não é acessível pela API (RLS/grants); só colunas seguras.
+    const linhas = rows(
       await supabase
         .from('solicitacoes_acesso')
-        .select('*')
+        .select('id, nome, email, status, criado_em')
         .order('criado_em', { ascending: false }),
     );
+    return linhas.map((s) => ({ ...s, senha: '' }));
   },
   async aprovarSolicitacao(
     id: string,
     extras: { taxa_comissao: number; meta_individual: number },
   ): Promise<Usuario> {
-    const solicitacao = maybe(
-      await supabase.from('solicitacoes_acesso').select('*').eq('id', id).maybeSingle(),
-    );
-    if (!solicitacao) throw new Error('Solicitação não encontrada');
-
-    const usuario = await supabaseApi.criarFuncionario({
-      nome: solicitacao.nome,
-      email: solicitacao.email,
-      senha: solicitacao.senha,
-      taxa_comissao: extras.taxa_comissao,
-      meta_individual: extras.meta_individual,
+    // A função cria usuário + credencial reaproveitando o hash já guardado.
+    const { data, error } = await supabase.rpc('aprovar_solicitacao', {
+      p_id: id,
+      p_taxa: extras.taxa_comissao,
+      p_meta: extras.meta_individual,
     });
-    row(
-      await supabase
-        .from('solicitacoes_acesso')
-        .update({ status: 'aprovado' })
-        .eq('id', id)
-        .select('id')
-        .single(),
-    );
-    return usuario;
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error('Solicitação não encontrada');
+    return data;
   },
   async recusarSolicitacao(id: string): Promise<void> {
-    const solicitacao = maybe(
-      await supabase.from('solicitacoes_acesso').select('id').eq('id', id).maybeSingle(),
-    );
-    if (!solicitacao) throw new Error('Solicitação não encontrada');
-    row(
-      await supabase
-        .from('solicitacoes_acesso')
-        .update({ status: 'recusado' })
-        .eq('id', id)
-        .select('id')
-        .single(),
-    );
+    const { error } = await supabase.rpc('recusar_solicitacao', { p_id: id });
+    if (error) throw new Error(error.message);
   },
 
   /* produtos */
