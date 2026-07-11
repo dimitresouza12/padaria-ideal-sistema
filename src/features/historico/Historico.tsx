@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
-import { Card, Tag, EmptyState } from '@/components/ui';
+import { Card, Tag, EmptyState, Modal } from '@/components/ui';
 import { fmtBRL, fmtBRLCompact, fmtData } from '@/lib/format';
-import type { StatusVenda } from '@/types';
+import type { StatusVenda, Venda } from '@/types';
 
 const TODOS = '__todos__';
 
@@ -13,6 +13,7 @@ export function Historico() {
   const [comercioId, setComercioId] = useState(TODOS);
   const [produtoId, setProdutoId] = useState(TODOS);
   const [status, setStatus] = useState<typeof TODOS | StatusVenda>(TODOS);
+  const [selecionada, setSelecionada] = useState<Venda | null>(null);
 
   const vendedores = usuarios.filter((u) => u.perfil === 'vendedor');
   const nomeVendedor = (id: string) => usuarios.find((u) => u.id === id)?.nome ?? '—';
@@ -66,8 +67,9 @@ export function Historico() {
             <option value="vencido">Vencido</option>
           </select>
         </div>
-        <div className="ml-auto text-[12.5px] text-ink-muted">
-          {filtradas.length} venda(s) · <span className="font-bold tabular-nums text-ink">{fmtBRLCompact(totalFiltrado)}</span>
+        <div className="ml-auto text-right text-[12.5px] text-ink-muted">
+          <div>{filtradas.length} venda(s) · <span className="font-bold tabular-nums text-ink">{fmtBRLCompact(totalFiltrado)}</span></div>
+          <div className="text-[11px]">Clique numa venda para ver os detalhes.</div>
         </div>
       </Card>
 
@@ -92,7 +94,11 @@ export function Historico() {
                 <tr><td colSpan={9}><EmptyState>Nenhuma venda encontrada com esses filtros.</EmptyState></td></tr>
               ) : (
                 filtradas.map((v) => (
-                  <tr key={v.id} className="border-b border-line text-[13px] last:border-0">
+                  <tr
+                    key={v.id}
+                    onClick={() => setSelecionada(v)}
+                    className="cursor-pointer border-b border-line text-[13px] transition last:border-0 hover:bg-plane"
+                  >
                     <td className="px-5 py-3 tabular-nums text-ink-muted">{fmtData(v.data_venda)}</td>
                     <td className="px-5 py-3 font-medium">{nomeVendedor(v.vendedor_id)}</td>
                     <td className="px-5 py-3">{nomeComercio(v.comercio_id)}</td>
@@ -109,6 +115,47 @@ export function Historico() {
           </table>
         </div>
       </Card>
+
+      <Modal aberto={selecionada !== null} titulo="Detalhes da venda" onFechar={() => setSelecionada(null)}>
+        {selecionada && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <div className="text-[15px] font-bold">{nomeProduto(selecionada.produto_id)}</div>
+              {statusTag(selecionada.status)}
+            </div>
+
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px]">
+              <Detalhe rotulo="Data da venda" valor={fmtData(selecionada.data_venda)} />
+              <Detalhe rotulo="Vendedor" valor={nomeVendedor(selecionada.vendedor_id)} />
+              <Detalhe rotulo="Cliente" valor={nomeComercio(selecionada.comercio_id)} />
+              <Detalhe
+                rotulo="Quantidade"
+                valor={`${selecionada.quantidade} cx · ${selecionada.modo_preco === 'atacado' ? 'Atacado' : 'Varejo'}`}
+              />
+              <Detalhe rotulo="Preço unitário" valor={fmtBRL(selecionada.preco_unitario)} />
+              <Detalhe rotulo="Valor total" valor={fmtBRL(selecionada.valor_total)} forte />
+              <Detalhe rotulo="Custo total" valor={fmtBRL(selecionada.custo_total)} />
+              <Detalhe rotulo="Margem" valor={fmtBRL(selecionada.margem)} />
+              <Detalhe
+                rotulo="Forma de pagamento"
+                valor={selecionada.forma_pagamento === 'a_vista' ? 'À Vista' : `A Prazo (${selecionada.prazo_dias}d)`}
+              />
+              {selecionada.forma_pagamento === 'a_prazo' && (
+                <Detalhe rotulo="Vencimento" valor={fmtData(selecionada.data_vencimento)} />
+              )}
+            </dl>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+function Detalhe({ rotulo, valor, forte = false }: { rotulo: string; valor: string; forte?: boolean }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">{rotulo}</dt>
+      <dd className={`mt-0.5 tabular-nums ${forte ? 'font-bold text-ink' : 'font-medium text-ink-soft'}`}>{valor}</dd>
     </div>
   );
 }

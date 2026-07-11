@@ -1,11 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { Card, Button, Tag, EmptyState, SectionLabel } from '@/components/ui';
 import { fmtData, primeiroNome } from '@/lib/format';
+import type { Usuario } from '@/types';
+
+/** Percentual "limpo" (sem ruído de ponto flutuante) a partir da fração salva. */
+const fracaoParaPct = (fracao: number): string => String(+(fracao * 100).toFixed(2));
 
 const FUNCIONARIO_INICIAL = { nome: '', email: '', senha: '', taxa_comissao: '10', meta_individual: '' };
 
 export function Configuracoes() {
+  const carregarSolicitacoes = useDataStore((s) => s.carregarSolicitacoes);
+
+  // Ao abrir a aba, busca as solicitações mais recentes (o gestor pode ter
+  // recebido pedidos novos desde que entrou no sistema).
+  useEffect(() => {
+    void carregarSolicitacoes();
+  }, [carregarSolicitacoes]);
+
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -98,15 +110,38 @@ function SolicitacoesPendentes() {
 
 function CadastrarFuncionario() {
   const criarFuncionario = useDataStore((s) => s.criarFuncionario);
+  const atualizarFuncionario = useDataStore((s) => s.atualizarFuncionario);
   const usuarios = useDataStore((s) => s.usuarios);
   const [form, setForm] = useState(FUNCIONARIO_INICIAL);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
+  // Edição inline de comissão/meta de um funcionário já cadastrado.
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [edit, setEdit] = useState({ taxa_comissao: '', meta_individual: '' });
+  const [salvandoEdit, setSalvandoEdit] = useState(false);
+
   const vendedores = usuarios.filter((u) => u.perfil === 'vendedor');
 
   const set = (campo: keyof typeof FUNCIONARIO_INICIAL) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [campo]: e.target.value }));
+
+  const iniciarEdicao = (v: Usuario) => {
+    setEditandoId(v.id);
+    setEdit({ taxa_comissao: fracaoParaPct(v.taxa_comissao), meta_individual: String(v.meta_individual) });
+  };
+  const salvarEdicao = async (id: string) => {
+    setSalvandoEdit(true);
+    try {
+      await atualizarFuncionario(id, {
+        taxa_comissao: (Number(edit.taxa_comissao) || 0) / 100,
+        meta_individual: Number(edit.meta_individual) || 0,
+      });
+      setEditandoId(null);
+    } finally {
+      setSalvandoEdit(false);
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,19 +176,69 @@ function CadastrarFuncionario() {
                 <th className="px-5 py-2.5">Comissão</th>
                 <th className="px-5 py-2.5">Meta individual</th>
                 <th className="px-5 py-2.5">Situação</th>
+                <th className="px-5 py-2.5 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {vendedores.map((v) => (
-                <tr key={v.id} className="border-b border-line text-[13px] last:border-0">
-                  <td className="px-5 py-3 font-semibold">{v.nome}</td>
-                  <td className="px-5 py-3 tabular-nums text-accent-dark">{primeiroNome(v.nome)}</td>
-                  <td className="px-5 py-3 text-ink-muted">{v.email}</td>
-                  <td className="px-5 py-3 tabular-nums">{(v.taxa_comissao * 100).toLocaleString('pt-BR')}%</td>
-                  <td className="px-5 py-3 tabular-nums">{v.meta_individual.toLocaleString('pt-BR')}</td>
-                  <td className="px-5 py-3"><Tag tone={v.ativo ? 'good' : 'neutral'}>{v.ativo ? 'Ativo' : 'Inativo'}</Tag></td>
-                </tr>
-              ))}
+              {vendedores.map((v) => {
+                const emEdicao = editandoId === v.id;
+                return (
+                  <tr key={v.id} className="border-b border-line text-[13px] last:border-0">
+                    <td className="px-5 py-3 font-semibold">{v.nome}</td>
+                    <td className="px-5 py-3 tabular-nums text-accent-dark">{primeiroNome(v.nome)}</td>
+                    <td className="px-5 py-3 text-ink-muted">{v.email}</td>
+                    <td className="px-5 py-3 tabular-nums">
+                      {emEdicao ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            className="field !w-20 !py-1.5"
+                            min={0}
+                            max={100}
+                            value={edit.taxa_comissao}
+                            onChange={(e) => setEdit((x) => ({ ...x, taxa_comissao: e.target.value }))}
+                          />
+                          <span className="text-ink-muted">%</span>
+                        </div>
+                      ) : (
+                        `${(v.taxa_comissao * 100).toLocaleString('pt-BR')}%`
+                      )}
+                    </td>
+                    <td className="px-5 py-3 tabular-nums">
+                      {emEdicao ? (
+                        <input
+                          type="number"
+                          className="field !w-32 !py-1.5"
+                          min={0}
+                          value={edit.meta_individual}
+                          onChange={(e) => setEdit((x) => ({ ...x, meta_individual: e.target.value }))}
+                        />
+                      ) : (
+                        v.meta_individual.toLocaleString('pt-BR')
+                      )}
+                    </td>
+                    <td className="px-5 py-3"><Tag tone={v.ativo ? 'good' : 'neutral'}>{v.ativo ? 'Ativo' : 'Inativo'}</Tag></td>
+                    <td className="px-5 py-3">
+                      <div className="flex justify-end gap-2">
+                        {emEdicao ? (
+                          <>
+                            <Button size="sm" onClick={() => void salvarEdicao(v.id)} disabled={salvandoEdit}>
+                              {salvandoEdit ? 'Salvando…' : 'Salvar'}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditandoId(null)} disabled={salvandoEdit}>
+                              Cancelar
+                            </Button>
+                          </>
+                        ) : (
+                          <Button size="sm" variant="secondary" onClick={() => iniciarEdicao(v)}>
+                            Editar
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -1,6 +1,7 @@
 import { useAuthStore } from '@/store/useAuthStore';
 import { LoginScreen } from '@/features/auth/LoginScreen';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { Toaster } from '@/components/Toaster';
 
 /**
  * Router SPA controlado por estado:
@@ -11,5 +12,10 @@ import { AppLayout } from '@/components/layout/AppLayout';
  */
 export default function App() {
   const autenticado = useAuthStore((s) => s.usuario !== null);
-  return autenticado ? <AppLayout /> : <LoginScreen />;
+  return (
+    <>
+      {autenticado ? <AppLayout /> : <LoginScreen />}
+      <Toaster />
+    </>
+  );
 }

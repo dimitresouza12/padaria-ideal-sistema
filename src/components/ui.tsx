@@ -2,6 +2,7 @@
  * Primitivos de UI do design system "Padaria Premium".
  * Componentes pequenos, sem estado, reutilizados por todas as telas.
  */
+import { useEffect } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /* ---------------- Card ---------------- */
@@ -98,4 +99,47 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 /* ---------------- Estado vazio ---------------- */
 export function EmptyState({ children }: { children: ReactNode }) {
   return <div className="px-4 py-10 text-center text-sm text-ink-muted">{children}</div>;
+}
+
+/* ---------------- Modal ---------------- */
+export function Modal({
+  aberto,
+  titulo,
+  onFechar,
+  children,
+}: {
+  aberto: boolean;
+  titulo: ReactNode;
+  onFechar: () => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    if (!aberto) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onFechar();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [aberto, onFechar]);
+
+  if (!aberto) return null;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onFechar} />
+      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-surface shadow-cardlg">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <div className="text-[14px] font-bold">{titulo}</div>
+          <button
+            type="button"
+            onClick={onFechar}
+            className="text-[11px] font-bold uppercase tracking-wider text-ink-muted transition hover:text-ink"
+          >
+            Fechar
+          </button>
+        </div>
+        <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
+      </div>
+    </div>
+  );
 }

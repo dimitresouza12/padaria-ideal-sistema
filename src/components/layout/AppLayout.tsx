@@ -20,11 +20,21 @@ export function AppLayout() {
   const usuario = useAuthStore((s) => s.usuario)!;
   const abaAtiva = useUiStore((s) => s.abaAtiva);
   const carregarTudo = useDataStore((s) => s.carregarTudo);
+  const carregarSolicitacoes = useDataStore((s) => s.carregarSolicitacoes);
   const carregado = useDataStore((s) => s.carregado);
 
   useEffect(() => {
     void carregarTudo();
   }, [carregarTudo]);
+
+  // Notificação de novas solicitações de acesso: o gestor recebe o pedido sem
+  // precisar recarregar a página (o badge na Sidebar atualiza). Prototipo usa
+  // polling leve; em produção, trocar por Supabase Realtime.
+  useEffect(() => {
+    if (usuario.perfil !== 'admin') return;
+    const id = setInterval(() => void carregarSolicitacoes(), 20000);
+    return () => clearInterval(id);
+  }, [usuario.perfil, carregarSolicitacoes]);
 
   // RBAC: se o perfil não pode ver a aba ativa, cai no dashboard.
   const permitido = abasDoPerfil(usuario.perfil).some((a) => a.id === abaAtiva);

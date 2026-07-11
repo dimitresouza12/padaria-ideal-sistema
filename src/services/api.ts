@@ -12,12 +12,16 @@
  *   export const api: DataApi = supabaseApi;
  */
 
-import { mockApi, type MockApi } from './mock/mockData';
+import type { MockApi } from './mock/mockData';
+import { supabaseApi } from './supabase/supabaseApi';
 
 /**
  * A interface que qualquer backend (mock ou Supabase) precisa satisfazer.
- * Derivada da API mock para manter as duas em sincronia por construção.
+ * Derivada da API mock para manter as duas em sincronia por construção — o
+ * `import type` traz só o contrato, sem carregar o runtime do mock (localStorage).
  */
 export type DataApi = MockApi;
 
-export const api: DataApi = mockApi;
+// Backend ativo: Supabase (PostgreSQL). Para voltar ao mock em localStorage,
+// troque por `import { mockApi } from './mock/mockData'` e `export const api = mockApi`.
+export const api: DataApi = supabaseApi;

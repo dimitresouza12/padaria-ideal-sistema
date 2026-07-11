@@ -35,7 +35,7 @@ interface DataState {
   carregado: boolean;
 
   carregarTudo: () => Promise<void>;
-  registrarVenda: (input: NovaVendaInput) => Promise<void>;
+  registrarVenda: (input: NovaVendaInput) => Promise<Venda>;
   darBaixa: (vendaId: string) => Promise<void>;
 
   criarMeta: (input: { nome: string; periodicidade: Periodicidade; data_inicio: string; data_fim: string }) => Promise<Meta>;
@@ -52,6 +52,8 @@ interface DataState {
   criarComercio: (input: Omit<Comercio, 'id' | 'ativo'>) => Promise<void>;
 
   criarFuncionario: (input: { nome: string; email: string; senha: string; taxa_comissao: number; meta_individual: number }) => Promise<void>;
+  atualizarFuncionario: (id: string, input: { taxa_comissao: number; meta_individual: number }) => Promise<void>;
+  carregarSolicitacoes: () => Promise<void>;
   aprovarSolicitacao: (id: string, extras: { taxa_comissao: number; meta_individual: number }) => Promise<void>;
   recusarSolicitacao: (id: string) => Promise<void>;
 
@@ -85,8 +87,9 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   registrarVenda: async (input) => {
-    await api.registrarVenda(input);
+    const venda = await api.registrarVenda(input);
     set({ vendas: await api.listarVendas() });
+    return venda;
   },
 
   darBaixa: async (vendaId) => {
@@ -158,6 +161,15 @@ export const useDataStore = create<DataState>((set, get) => ({
   criarFuncionario: async (input) => {
     await api.criarFuncionario(input);
     set({ usuarios: await api.listarUsuarios() });
+  },
+
+  atualizarFuncionario: async (id, input) => {
+    await api.atualizarFuncionario(id, input);
+    set({ usuarios: await api.listarUsuarios() });
+  },
+
+  carregarSolicitacoes: async () => {
+    set({ solicitacoes: await api.listarSolicitacoes() });
   },
 
   aprovarSolicitacao: async (id, extras) => {

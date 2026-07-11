@@ -329,6 +329,18 @@ export const mockApi = {
     persist();
     return delay(usuario);
   },
+  /** Ajusta comissão e meta individual de um funcionário já cadastrado (aba Configurações). */
+  async atualizarFuncionario(
+    id: string,
+    input: { taxa_comissao: number; meta_individual: number },
+  ): Promise<Usuario> {
+    const usuario = db.usuarios.find((u) => u.id === id);
+    if (!usuario) throw new Error('Funcionário não encontrado');
+    usuario.taxa_comissao = input.taxa_comissao;
+    usuario.meta_individual = input.meta_individual;
+    persist();
+    return delay({ ...usuario });
+  },
 
   /* solicitações de acesso (fluxo self-service pelo login) */
   async solicitarAcesso(nome: string, email: string, senha: string): Promise<SolicitacaoAcesso> {

@@ -4,8 +4,8 @@ import { useDataStore } from '@/store/useDataStore';
 import { useUiStore } from '@/store/useUiStore';
 import { Card, Button, Tag } from '@/components/ui';
 import { resolverPreco } from '@/lib/pricing';
-import { fmtBRL } from '@/lib/format';
-import type { FormaPagamento } from '@/types';
+import { fmtBRL, fmtData } from '@/lib/format';
+import type { FormaPagamento, Venda } from '@/types';
 
 export function RegistrarVenda() {
   const usuario = useAuthStore((s) => s.usuario)!;
@@ -17,10 +17,14 @@ export function RegistrarVenda() {
   // vendas já registradas com ele continuam intactas no histórico.
   const produtos = todosProdutos.filter((p) => p.ativo);
 
-  const vendedores = usuarios.filter((u) => u.perfil === 'vendedor');
   const ehVendedor = usuario.perfil === 'vendedor';
+  // O admin também vende: o seletor de responsável inclui os vendedores E o
+  // próprio admin logado. Um vendedor fica travado no próprio usuário.
+  const opcoesVendedor = ehVendedor
+    ? [usuario]
+    : usuarios.filter((u) => u.ativo && (u.perfil === 'vendedor' || u.id === usuario.id));
 
-  const [vendedorId, setVendedorId] = useState(ehVendedor ? usuario.id : (vendedores[0]?.id ?? ''));
+  const [vendedorId, setVendedorId] = useState(usuario.id);
   const [comercioId, setComercioId] = useState(comercios[0]?.id ?? '');
   const [produtoId, setProdutoId] = useState(produtos[0]?.id ?? '');
   const [quantidade, setQuantidade] = useState(1);
@@ -28,6 +32,7 @@ export function RegistrarVenda() {
   const [forma, setForma] = useState<FormaPagamento>('a_vista');
   const [prazo, setPrazo] = useState(7);
   const [salvando, setSalvando] = useState(false);
+  const [sucesso, setSucesso] = useState<Venda | null>(null);
 
   const produto = produtos.find((p) => p.id === produtoId);
 
@@ -45,7 +50,7 @@ export function RegistrarVenda() {
     e.preventDefault();
     if (!produto || quantidade <= 0) return;
     setSalvando(true);
-    await registrarVenda({
+    const venda = await registrarVenda({
       vendedor_id: vendedorId,
       comercio_id: comercioId,
       produto_id: produtoId,
@@ -55,21 +60,37 @@ export function RegistrarVenda() {
       prazo_dias: forma === 'a_prazo' ? prazo : undefined,
     });
     setSalvando(false);
-    irPara('lembretes'); // após registrar, mostra o reflexo imediato (a prazo aparece aqui)
+    // Em vez de redirecionar, confirma a venda aqui mesmo e limpa o formulário
+    // para o próximo lançamento.
+    setSucesso(venda);
+    setQuantidade(1);
+    setPrecoDigitado('');
+    setForma('a_vista');
+    setPrazo(7);
   };
 
   const faltam = produto ? produto.qtd_min_atacado - quantidade : 0;
 
   return (
     <div className="max-w-2xl">
+      {sucesso && (
+        <ConfirmacaoVenda
+          venda={sucesso}
+          onFechar={() => setSucesso(null)}
+          onVerLembretes={() => irPara('lembretes')}
+        />
+      )}
+
       <Card className="p-6">
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="field-label">Vendedor responsável</label>
               <select className="field" value={vendedorId} disabled={ehVendedor} onChange={(e) => setVendedorId(e.target.value)}>
-                {vendedores.map((v) => (
-                  <option key={v.id} value={v.id}>{v.nome}</option>
+                {opcoesVendedor.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.nome}{v.id === usuario.id ? ' (você)' : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -182,5 +203,82 @@ export function RegistrarVenda() {
         </form>
       </Card>
     </div>
+  );
+}
+
+/** Painel de confirmação exibido após registrar uma venda (substitui o redirect). */
+function ConfirmacaoVenda({
+  venda,
+  onFechar,
+  onVerLembretes,
+}: {
+  venda: Venda;
+  onFechar: () => void;
+  onVerLembretes: () => void;
+}) {
+  const { produtos, comercios, usuarios } = useDataStore();
+  const produto = produtos.find((p) => p.id === venda.produto_id);
+  const comercio = comercios.find((c) => c.id === venda.comercio_id);
+  const vendedor = usuarios.find((u) => u.id === venda.vendedor_id);
+  const aPrazo = venda.forma_pagamento === 'a_prazo';
+
+  return (
+    <Card className="mb-5 border-l-[3px] border-l-good p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Tag tone="good">Venda registrada</Tag>
+          <span className="text-[13.5px] font-bold">{produto?.nome ?? 'Produto'}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onFechar}
+          className="text-[11px] font-bold uppercase tracking-wider text-ink-muted hover:text-ink"
+        >
+          Fechar
+        </button>
+      </div>
+
+      <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-[12.5px] sm:grid-cols-3">
+        <div>
+          <dt className="text-ink-muted">Cliente</dt>
+          <dd className="font-semibold">{comercio?.razao_social ?? '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted">Vendedor</dt>
+          <dd className="font-semibold">{vendedor?.nome ?? '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted">Quantidade</dt>
+          <dd className="font-semibold tabular-nums">{venda.quantidade} cx · {venda.modo_preco === 'atacado' ? 'Atacado' : 'Varejo'}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted">Valor total</dt>
+          <dd className="font-bold tabular-nums text-ink">{fmtBRL(venda.valor_total)}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted">Margem</dt>
+          <dd className="font-semibold tabular-nums">{fmtBRL(venda.margem)}</dd>
+        </div>
+        <div>
+          <dt className="text-ink-muted">Pagamento</dt>
+          <dd className="font-semibold">
+            {aPrazo ? (
+              <>A prazo · vence {fmtData(venda.data_vencimento)} <Tag tone="warn">Pendente</Tag></>
+            ) : (
+              <>À vista <Tag tone="good">Pago</Tag></>
+            )}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="mt-4 flex items-center gap-2 border-t border-line pt-4">
+        <Button size="sm" onClick={onFechar}>Registrar outra venda</Button>
+        {aPrazo && (
+          <Button size="sm" variant="secondary" onClick={onVerLembretes}>
+            Ver em Lembretes
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }

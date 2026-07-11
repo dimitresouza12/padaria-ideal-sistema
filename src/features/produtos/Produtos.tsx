@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
-import { Card, Button, Tag } from '@/components/ui';
+import { useToastStore } from '@/store/useToastStore';
+import { Card, Button } from '@/components/ui';
 import { fmtBRL } from '@/lib/format';
 import type { Produto } from '@/types';
 
@@ -11,9 +12,14 @@ export function Produtos() {
   const criarProduto = useDataStore((s) => s.criarProduto);
   const editarProduto = useDataStore((s) => s.editarProduto);
   const removerProduto = useDataStore((s) => s.removerProduto);
+  const notificar = useToastStore((s) => s.notificar);
 
   const [form, setForm] = useState(FORM_INICIAL);
   const [editandoId, setEditandoId] = useState<string | null>(null);
+
+  // O catálogo mostra apenas produtos ativos: ao remover, o item sai da lista
+  // na hora (a exclusão é lógica — vendas antigas continuam íntegras).
+  const visiveis = produtos.filter((p) => p.ativo);
 
   const set = (campo: keyof typeof FORM_INICIAL) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [campo]: e.target.value }));
@@ -48,8 +54,10 @@ export function Produtos() {
     };
     if (editandoId) {
       await editarProduto(editandoId, payload);
+      notificar('Alterações salvas.');
     } else {
       await criarProduto(payload);
+      notificar('Produto cadastrado.');
     }
     cancelarEdicao();
   };
@@ -58,6 +66,7 @@ export function Produtos() {
     if (confirm(`Remover "${p.nome}" do catálogo? Vendas já registradas com este produto não são afetadas.`)) {
       await removerProduto(p.id);
       if (editandoId === p.id) cancelarEdicao();
+      notificar(`"${p.nome}" foi excluído do catálogo.`, 'neutral');
     }
   };
 
@@ -74,28 +83,22 @@ export function Produtos() {
                 <th className="px-5 py-2.5">Preço Varejo</th>
                 <th className="px-5 py-2.5">Preço Atacado</th>
                 <th className="px-5 py-2.5">Qtd. Mín. Atacado</th>
-                <th className="px-5 py-2.5">Situação</th>
                 <th className="px-5 py-2.5" />
               </tr>
             </thead>
             <tbody>
-              {produtos.map((p) => (
-                <tr key={p.id} className={`border-b border-line text-[13px] last:border-0 ${!p.ativo ? 'opacity-50' : ''}`}>
+              {visiveis.map((p) => (
+                <tr key={p.id} className="border-b border-line text-[13px] last:border-0">
                   <td className="px-5 py-3 font-semibold">{p.nome}</td>
                   <td className="px-5 py-3 tabular-nums text-ink-muted">{p.sku}</td>
                   <td className="px-5 py-3 tabular-nums">{fmtBRL(p.preco_custo)}</td>
                   <td className="px-5 py-3 tabular-nums">{fmtBRL(p.preco_varejo)}</td>
                   <td className="px-5 py-3 font-semibold tabular-nums">{fmtBRL(p.preco_atacado)}</td>
                   <td className="px-5 py-3 tabular-nums">{p.qtd_min_atacado} cx</td>
-                  <td className="px-5 py-3">
-                    <Tag tone={p.ativo ? 'good' : 'neutral'}>{p.ativo ? 'Ativo' : 'Inativo'}</Tag>
-                  </td>
                   <td className="whitespace-nowrap px-5 py-3 text-right">
                     <div className="flex justify-end gap-2">
                       <Button variant="secondary" size="sm" onClick={() => preencherParaEdicao(p)}>Editar</Button>
-                      {p.ativo && (
-                        <Button variant="danger" size="sm" onClick={() => onRemover(p)}>Remover</Button>
-                      )}
+                      <Button variant="danger" size="sm" onClick={() => onRemover(p)}>Remover</Button>
                     </div>
                   </td>
                 </tr>

@@ -25,4 +25,19 @@
   .field-label {
     @apply mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-ink-soft;
   }
+  /* Entrada das notificações (toast) — sobe suavemente ao aparecer. */
+  .toast-in {
+    animation: toastIn 0.18s ease-out;
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

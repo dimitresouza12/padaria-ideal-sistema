@@ -8,9 +8,12 @@ export function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
   const { abaAtiva, irPara, sidebarAberta, fecharSidebar } = useUiStore();
   const restaurarExemplo = useDataStore((s) => s.restaurarExemplo);
+  const solicitacoes = useDataStore((s) => s.solicitacoes);
 
   if (!usuario) return null;
   const abas = abasDoPerfil(usuario.perfil);
+  // Notificação de pedidos de acesso aguardando aprovação (aba Configurações).
+  const pendentesAcesso = solicitacoes.filter((s) => s.status === 'pendente').length;
 
   return (
     <>
@@ -38,6 +41,7 @@ export function Sidebar() {
           {abas.map((aba) => {
             const Icone = iconePorAba[aba.id];
             const ativo = aba.id === abaAtiva;
+            const badge = aba.id === 'configuracoes' ? pendentesAcesso : 0;
             return (
               <button
                 key={aba.id}
@@ -47,7 +51,12 @@ export function Sidebar() {
                 }`}
               >
                 <Icone size={17} />
-                <span>{aba.titulo}</span>
+                <span className="flex-1">{aba.titulo}</span>
+                {badge > 0 && (
+                  <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-bad-strong px-1 text-[10px] font-extrabold text-white">
+                    {badge}
+                  </span>
+                )}
               </button>
             );
           })}
