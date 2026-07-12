@@ -36,6 +36,8 @@ interface DataState {
 
   carregarTudo: () => Promise<void>;
   registrarVenda: (input: NovaVendaInput) => Promise<Venda>;
+  atualizarVenda: (vendaId: string, input: NovaVendaInput & { data_venda?: string }) => Promise<Venda>;
+  removerVenda: (vendaId: string) => Promise<void>;
   darBaixa: (vendaId: string) => Promise<void>;
 
   criarMeta: (input: { nome: string; periodicidade: Periodicidade; data_inicio: string; data_fim: string }) => Promise<Meta>;
@@ -90,6 +92,17 @@ export const useDataStore = create<DataState>((set, get) => ({
     const venda = await api.registrarVenda(input);
     set({ vendas: await api.listarVendas() });
     return venda;
+  },
+
+  atualizarVenda: async (vendaId, input) => {
+    const venda = await api.atualizarVenda(vendaId, input);
+    set({ vendas: await api.listarVendas() });
+    return venda;
+  },
+
+  removerVenda: async (vendaId) => {
+    await api.removerVenda(vendaId);
+    set({ vendas: await api.listarVendas() });
   },
 
   darBaixa: async (vendaId) => {

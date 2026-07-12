@@ -272,6 +272,76 @@ export const supabaseApi = {
         .single(),
     );
   },
+  /**
+   * Corrige uma venda já registrada. Recalcula preço/margem/vencimento com a
+   * mesma regra de `registrarVenda`. Se a venda já estava paga (baixa manual)
+   * e a forma de pagamento continua "a prazo", preserva o status pago —
+   * editar não deve reabrir uma cobrança já quitada.
+   */
+  async atualizarVenda(vendaId: string, input: NovaVendaInput & { data_venda?: string }): Promise<Venda> {
+    const vendaAtual = maybe(
+      await supabase.from('vendas').select('*').eq('id', vendaId).maybeSingle(),
+    );
+    if (!vendaAtual) throw new Error('Venda não encontrada');
+    const produto = maybe(
+      await supabase.from('produtos').select('*').eq('id', input.produto_id).maybeSingle(),
+    );
+    if (!produto) throw new Error('Produto não encontrado');
+
+    const { preco_unitario, modo_preco } = resolverPreco(
+      produto,
+      input.quantidade,
+      input.preco_unitario,
+    );
+    const valor_total = preco_unitario * input.quantidade;
+    const custo_total = produto.preco_custo * input.quantidade;
+    const data_venda = input.data_venda ?? vendaAtual.data_venda;
+    const data_vencimento =
+      input.forma_pagamento === 'a_prazo' ? somarDias(data_venda, input.prazo_dias ?? 7) : null;
+
+    let status: Venda['status'];
+    if (input.forma_pagamento === 'a_vista') {
+      status = 'pago';
+    } else if (vendaAtual.status === 'pago') {
+      status = 'pago';
+    } else {
+      status = data_vencimento && data_vencimento < HOJE ? 'vencido' : 'pendente';
+    }
+
+    const venda = maybe(
+      await supabase
+        .from('vendas')
+        .update({
+          vendedor_id: input.vendedor_id,
+          comercio_id: input.comercio_id,
+          produto_id: input.produto_id,
+          quantidade: input.quantidade,
+          preco_unitario,
+          modo_preco,
+          valor_total,
+          custo_total,
+          margem: valor_total - custo_total,
+          forma_pagamento: input.forma_pagamento,
+          prazo_dias: input.forma_pagamento === 'a_prazo' ? input.prazo_dias ?? 7 : null,
+          data_venda,
+          data_vencimento,
+          status,
+        })
+        .eq('id', vendaId)
+        .select('*')
+        .maybeSingle(),
+    );
+    if (!venda) throw new Error('Venda não encontrada');
+    return venda;
+  },
+  async removerVenda(vendaId: string): Promise<void> {
+    const { error, count } = await supabase
+      .from('vendas')
+      .delete({ count: 'exact' })
+      .eq('id', vendaId);
+    if (error) throw new Error(error.message);
+    if (!count) throw new Error('Venda não encontrada');
+  },
   async darBaixaPagamento(vendaId: string): Promise<Venda> {
     const venda = maybe(
       await supabase
