@@ -503,6 +503,61 @@ export const mockApi = {
     persist();
     return delay(venda);
   },
+  /**
+   * Corrige uma venda já registrada (o gestor pode ter errado quantidade,
+   * cliente, produto etc.). Recalcula preço/margem/vencimento com a mesma
+   * regra de `registrarVenda`. Se a venda já estava paga (baixa manual) e a
+   * forma de pagamento continua "a prazo", preserva o status pago — editar
+   * não deve reabrir uma cobrança já quitada.
+   */
+  async atualizarVenda(vendaId: string, input: NovaVendaInput & { data_venda?: string }): Promise<Venda> {
+    const venda = db.vendas.find((v) => v.id === vendaId);
+    if (!venda) throw new Error('Venda não encontrada');
+    const produto = db.produtos.find((p) => p.id === input.produto_id);
+    if (!produto) throw new Error('Produto não encontrado');
+
+    const { preco_unitario, modo_preco } = resolverPreco(produto, input.quantidade, input.preco_unitario);
+    const valor_total = preco_unitario * input.quantidade;
+    const custo_total = produto.preco_custo * input.quantidade;
+    const data_venda = input.data_venda ?? venda.data_venda;
+    const data_vencimento =
+      input.forma_pagamento === 'a_prazo' ? somarDias(data_venda, input.prazo_dias ?? 7) : null;
+
+    let status: Venda['status'];
+    if (input.forma_pagamento === 'a_vista') {
+      status = 'pago';
+    } else if (venda.status === 'pago') {
+      status = 'pago'; // já quitada — editar não reabre a cobrança
+    } else {
+      status = data_vencimento && data_vencimento < HOJE ? 'vencido' : 'pendente';
+    }
+
+    Object.assign(venda, {
+      vendedor_id: input.vendedor_id,
+      comercio_id: input.comercio_id,
+      produto_id: input.produto_id,
+      quantidade: input.quantidade,
+      preco_unitario,
+      modo_preco,
+      valor_total,
+      custo_total,
+      margem: valor_total - custo_total,
+      forma_pagamento: input.forma_pagamento,
+      prazo_dias: input.forma_pagamento === 'a_prazo' ? input.prazo_dias ?? 7 : null,
+      data_venda,
+      data_vencimento,
+      status,
+    });
+    persist();
+    return delay({ ...venda });
+  },
+  async removerVenda(vendaId: string): Promise<void> {
+    const existe = db.vendas.some((v) => v.id === vendaId);
+    if (!existe) throw new Error('Venda não encontrada');
+    db.vendas = db.vendas.filter((v) => v.id !== vendaId);
+    persist();
+    return delay(undefined);
+  },
   async darBaixaPagamento(vendaId: string): Promise<Venda> {
     const venda = db.vendas.find((v) => v.id === vendaId);
     if (!venda) throw new Error('Venda não encontrada');

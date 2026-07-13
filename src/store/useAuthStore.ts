@@ -6,11 +6,23 @@ import { useUiStore } from './useUiStore';
 /**
  * Sessão do usuário logado.
  *
- * Mantida apenas em memória de propósito: um refresh sempre volta ao login
- * (comportamento de protótipo). Na virada para o Supabase, `login`/`logout`
- * passam a chamar `supabase.auth.signInWithPassword` / `signOut`, e a sessão
- * pode ser hidratada de `supabase.auth.getSession()`.
+ * Persistida em localStorage (só o objeto Usuario, sem senha — a senha nunca
+ * passa pelo client) para sobreviver a um refresh. Na virada para o Supabase
+ * Auth de verdade, `login`/`logout` passam a chamar
+ * `supabase.auth.signInWithPassword` / `signOut`, e a sessão é hidratada de
+ * `supabase.auth.getSession()` em vez deste storage manual.
  */
+const STORAGE_KEY = 'padaria_ideal_sessao_v1';
+
+function lerSessaoSalva(): Usuario | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Usuario) : null;
+  } catch {
+    return null;
+  }
+}
+
 interface AuthState {
   usuario: Usuario | null;
   carregando: boolean;
@@ -21,7 +33,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  usuario: null,
+  usuario: lerSessaoSalva(),
   carregando: false,
   erro: null,
 
@@ -29,6 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ carregando: true, erro: null });
     try {
       const { usuario } = await api.login(login, senha);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(usuario));
       set({ usuario, carregando: false });
       useUiStore.getState().irPara('dashboard'); // toda sessão nova começa no Dashboard
       return true;
@@ -39,6 +52,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
+    localStorage.removeItem(STORAGE_KEY);
     set({ usuario: null, erro: null });
     useUiStore.getState().irPara('dashboard'); // limpa a navegação para a próxima sessão
   },
