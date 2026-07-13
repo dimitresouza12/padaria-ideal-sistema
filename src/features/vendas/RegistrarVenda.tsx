@@ -7,7 +7,13 @@ import { resolverPreco } from '@/lib/pricing';
 import { fmtBRL, fmtData } from '@/lib/format';
 import type { FormaPagamento, Venda } from '@/types';
 
-export function RegistrarVenda() {
+/**
+ * Formulário de lançamento de venda. Fica dentro de um Modal na aba Vendas
+ * (`features/vendas/Vendas.tsx`). `aoIrParaLembretes` é chamado quando o usuário
+ * clica em "Ver em Lembretes" na confirmação, para que o pai possa fechar o modal
+ * antes de navegar.
+ */
+export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () => void }) {
   const usuario = useAuthStore((s) => s.usuario)!;
   const { produtos: todosProdutos, comercios, usuarios } = useDataStore();
   const registrarVenda = useDataStore((s) => s.registrarVenda);
@@ -72,12 +78,12 @@ export function RegistrarVenda() {
   const faltam = produto ? produto.qtd_min_atacado - quantidade : 0;
 
   return (
-    <div className="max-w-2xl">
+    <>
       {sucesso && (
         <ConfirmacaoVenda
           venda={sucesso}
           onFechar={() => setSucesso(null)}
-          onVerLembretes={() => irPara('lembretes')}
+          onVerLembretes={aoIrParaLembretes ?? (() => irPara('lembretes'))}
         />
       )}
 
@@ -202,7 +208,7 @@ export function RegistrarVenda() {
           </div>
         </form>
       </Card>
-    </div>
+    </>
   );
 }
 
@@ -282,3 +288,5 @@ function ConfirmacaoVenda({
     </Card>
   );
 }
+
+export { FormularioVenda as RegistrarVenda };

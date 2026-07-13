@@ -33,12 +33,12 @@ export function LoginScreen() {
 function Logo() {
   const [logoFalhou, setLogoFalhou] = useState(false);
   return (
-    <div className="mb-6 flex h-[78px] items-center justify-center">
+    <div className="mb-6 flex h-[120px] items-center justify-center">
       {!logoFalhou ? (
         <img
           src="/logoIdeal.PNG"
           alt="Logotipo Padaria Ideal"
-          className="max-h-[78px] w-auto max-w-[210px] object-contain"
+          className="max-h-[120px] w-auto max-w-[320px] object-contain"
           onError={() => setLogoFalhou(true)}
         />
       ) : (

@@ -6,9 +6,19 @@ import { useEffect } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /* ---------------- Card ---------------- */
-export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className = '',
+  onClick,
+}: {
+  children: ReactNode;
+  className?: string;
+  onClick?: () => void;
+}) {
   return (
-    <div className={`rounded-2xl border border-line bg-surface shadow-card ${className}`}>{children}</div>
+    <div className={`rounded-2xl border border-line bg-surface shadow-card ${className}`} onClick={onClick}>
+      {children}
+    </div>
   );
 }
 
@@ -99,6 +109,47 @@ export function SectionLabel({ children }: { children: ReactNode }) {
 /* ---------------- Estado vazio ---------------- */
 export function EmptyState({ children }: { children: ReactNode }) {
   return <div className="px-4 py-10 text-center text-sm text-ink-muted">{children}</div>;
+}
+
+/* ---------------- Sub-navegação (abas internas de uma tela) ---------------- */
+export interface SubTab {
+  id: string;
+  titulo: string;
+  badge?: number;
+}
+export function SubTabs({
+  abas,
+  ativa,
+  onSelecionar,
+}: {
+  abas: SubTab[];
+  ativa: string;
+  onSelecionar: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface p-1 shadow-card">
+      {abas.map((aba) => {
+        const sel = aba.id === ativa;
+        return (
+          <button
+            key={aba.id}
+            type="button"
+            onClick={() => onSelecionar(aba.id)}
+            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-bold transition ${
+              sel ? 'bg-accent-wash text-accent-dark' : 'text-ink-soft hover:bg-plane hover:text-ink'
+            }`}
+          >
+            {aba.titulo}
+            {aba.badge != null && aba.badge > 0 && (
+              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-bad-strong px-1 text-[10px] font-extrabold text-white">
+                {aba.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /* ---------------- Modal ---------------- */

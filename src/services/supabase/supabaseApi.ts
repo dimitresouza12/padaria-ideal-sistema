@@ -108,19 +108,40 @@ export const supabaseApi = {
     senha: string;
     taxa_comissao: number;
     meta_individual: number;
+    adminLogin: string;
+    adminSenha: string;
   }): Promise<Usuario> {
     // Cria usuário + credencial (senha em hash) numa transação no servidor;
-    // a checagem de login duplicado e o hash ficam na função do Postgres.
+    // a checagem de login duplicado, o hash e a confirmação de que quem chamou
+    // é de fato um admin (login+senha revalidados via bcrypt) ficam na função
+    // do Postgres — necessário porque a chave anon é pública no bundle e não
+    // carrega identidade de sessão nenhuma.
     const { data, error } = await supabase.rpc('criar_funcionario', {
       p_nome: input.nome,
       p_email: input.email,
       p_senha: input.senha,
       p_taxa: input.taxa_comissao,
       p_meta: input.meta_individual,
+      p_admin_login: input.adminLogin,
+      p_admin_senha: input.adminSenha,
     });
     if (error) throw new Error(error.message);
     if (!data) throw new Error('Não foi possível cadastrar o funcionário.');
     return data;
+  },
+  async alterarSenha(
+    loginAlvo: string,
+    senhaNova: string,
+    adminLogin: string,
+    adminSenha: string,
+  ): Promise<void> {
+    const { error } = await supabase.rpc('alterar_senha', {
+      p_login_alvo: loginAlvo,
+      p_senha_nova: senhaNova,
+      p_admin_login: adminLogin,
+      p_admin_senha: adminSenha,
+    });
+    if (error) throw new Error(error.message);
   },
   async atualizarFuncionario(
     id: string,
@@ -164,19 +185,27 @@ export const supabaseApi = {
   async aprovarSolicitacao(
     id: string,
     extras: { taxa_comissao: number; meta_individual: number },
+    adminLogin: string,
+    adminSenha: string,
   ): Promise<Usuario> {
     // A função cria usuário + credencial reaproveitando o hash já guardado.
     const { data, error } = await supabase.rpc('aprovar_solicitacao', {
       p_id: id,
       p_taxa: extras.taxa_comissao,
       p_meta: extras.meta_individual,
+      p_admin_login: adminLogin,
+      p_admin_senha: adminSenha,
     });
     if (error) throw new Error(error.message);
     if (!data) throw new Error('Solicitação não encontrada');
     return data;
   },
-  async recusarSolicitacao(id: string): Promise<void> {
-    const { error } = await supabase.rpc('recusar_solicitacao', { p_id: id });
+  async recusarSolicitacao(id: string, adminLogin: string, adminSenha: string): Promise<void> {
+    const { error } = await supabase.rpc('recusar_solicitacao', {
+      p_id: id,
+      p_admin_login: adminLogin,
+      p_admin_senha: adminSenha,
+    });
     if (error) throw new Error(error.message);
   },
 

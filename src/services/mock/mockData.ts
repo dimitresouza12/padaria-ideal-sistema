@@ -57,6 +57,15 @@ const somarDias = (iso: string, dias: number): string => {
 const diasEntre = (a: string, b: string): number =>
   Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 
+/** Espelha a checagem feita no Postgres (SECURITY DEFINER) para as mesmas ações. */
+const exigirAdmin = (adminLogin: string, adminSenha: string): void => {
+  const cred = db.credenciais[adminLogin.trim().toLowerCase()];
+  const usuario = cred && db.usuarios.find((u) => u.id === cred.usuario_id);
+  if (!cred || cred.senha !== adminSenha || !usuario || usuario.perfil !== 'admin') {
+    throw new Error('Não autorizado');
+  }
+};
+
 /* ------------------------------------------------------------------ *
  * SEED
  * ------------------------------------------------------------------ */
@@ -309,7 +318,10 @@ export const mockApi = {
     senha: string;
     taxa_comissao: number;
     meta_individual: number;
+    adminLogin: string;
+    adminSenha: string;
   }): Promise<Usuario> {
+    exigirAdmin(input.adminLogin, input.adminSenha);
     const login = primeiroNome(input.nome).toLowerCase();
     if (db.credenciais[login]) {
       throw new Error(`Já existe um funcionário com o login "${primeiroNome(input.nome)}". Ajuste o nome (ex.: acrescente o sobrenome) para diferenciar.`);
@@ -328,6 +340,21 @@ export const mockApi = {
     db.credenciais[login] = { senha: input.senha, usuario_id: usuario.id };
     persist();
     return delay(usuario);
+  },
+  /** Admin troca a senha de qualquer login (a própria ou a de um funcionário). */
+  async alterarSenha(
+    loginAlvo: string,
+    senhaNova: string,
+    adminLogin: string,
+    adminSenha: string,
+  ): Promise<void> {
+    exigirAdmin(adminLogin, adminSenha);
+    const login = loginAlvo.trim().toLowerCase();
+    const cred = db.credenciais[login];
+    if (!cred) throw new Error('Funcionário não encontrado');
+    cred.senha = senhaNova;
+    persist();
+    return delay(undefined);
   },
   /** Ajusta comissão e meta individual de um funcionário já cadastrado (aba Configurações). */
   async atualizarFuncionario(
@@ -370,7 +397,10 @@ export const mockApi = {
   async aprovarSolicitacao(
     id: string,
     extras: { taxa_comissao: number; meta_individual: number },
+    adminLogin: string,
+    adminSenha: string,
   ): Promise<Usuario> {
+    exigirAdmin(adminLogin, adminSenha);
     const solicitacao = db.solicitacoes.find((s) => s.id === id);
     if (!solicitacao) throw new Error('Solicitação não encontrada');
     const usuario = await mockApi.criarFuncionario({
@@ -379,12 +409,15 @@ export const mockApi = {
       senha: solicitacao.senha,
       taxa_comissao: extras.taxa_comissao,
       meta_individual: extras.meta_individual,
+      adminLogin,
+      adminSenha,
     });
     solicitacao.status = 'aprovado';
     persist();
     return usuario;
   },
-  async recusarSolicitacao(id: string): Promise<void> {
+  async recusarSolicitacao(id: string, adminLogin: string, adminSenha: string): Promise<void> {
+    exigirAdmin(adminLogin, adminSenha);
     const solicitacao = db.solicitacoes.find((s) => s.id === id);
     if (!solicitacao) throw new Error('Solicitação não encontrada');
     solicitacao.status = 'recusado';

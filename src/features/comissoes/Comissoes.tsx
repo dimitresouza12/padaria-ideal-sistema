@@ -32,7 +32,8 @@ export function Comissoes() {
         </div>
       </div>
 
-      <Card className="overflow-hidden">
+      {/* Desktop: tabela */}
+      <Card className="hidden overflow-hidden sm:block">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -66,6 +67,40 @@ export function Comissoes() {
           </table>
         </div>
       </Card>
+
+      {/* Mobile: cards */}
+      <div className="flex flex-col gap-3 sm:hidden">
+        {linhas.map((l) => (
+          <Card key={l.id} className="p-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="text-[14px] font-bold">{l.nome}</div>
+              <div className="text-[15px] font-bold tabular-nums text-accent-dark">{fmtBRL(l.comissao)}</div>
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12.5px]">
+              <div>
+                <dt className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">Pedidos</dt>
+                <dd className="tabular-nums">{l.pedidos}</dd>
+              </div>
+              <div>
+                <dt className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">Taxa</dt>
+                <dd className="tabular-nums">{fmtPct(l.taxa * 100)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">Faturamento</dt>
+                <dd className="tabular-nums">{fmtBRL(l.faturamento)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">Margem</dt>
+                <dd className="tabular-nums">{fmtBRL(l.margem)}</dd>
+              </div>
+            </dl>
+          </Card>
+        ))}
+        <Card className="flex items-center justify-between p-4">
+          <div className="text-[13px] font-bold">Total a pagar</div>
+          <div className="text-[15px] font-bold tabular-nums text-accent-dark">{fmtBRL(totalComissao)}</div>
+        </Card>
+      </div>
     </div>
   );
 }

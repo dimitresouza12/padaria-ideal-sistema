@@ -51,11 +51,12 @@ interface DataState {
   removerProduto: (id: string) => Promise<void>;
   criarComercio: (input: Omit<Comercio, 'id' | 'ativo'>) => Promise<void>;
 
-  criarFuncionario: (input: { nome: string; email: string; senha: string; taxa_comissao: number; meta_individual: number }) => Promise<void>;
+  criarFuncionario: (input: { nome: string; email: string; senha: string; taxa_comissao: number; meta_individual: number; adminLogin: string; adminSenha: string }) => Promise<void>;
   atualizarFuncionario: (id: string, input: { taxa_comissao: number; meta_individual: number }) => Promise<void>;
+  alterarSenha: (loginAlvo: string, senhaNova: string, adminLogin: string, adminSenha: string) => Promise<void>;
   carregarSolicitacoes: () => Promise<void>;
-  aprovarSolicitacao: (id: string, extras: { taxa_comissao: number; meta_individual: number }) => Promise<void>;
-  recusarSolicitacao: (id: string) => Promise<void>;
+  aprovarSolicitacao: (id: string, extras: { taxa_comissao: number; meta_individual: number }, adminLogin: string, adminSenha: string) => Promise<void>;
+  recusarSolicitacao: (id: string, adminLogin: string, adminSenha: string) => Promise<void>;
 
   restaurarExemplo: () => Promise<void>;
 }
@@ -168,18 +169,22 @@ export const useDataStore = create<DataState>((set, get) => ({
     set({ usuarios: await api.listarUsuarios() });
   },
 
+  alterarSenha: async (loginAlvo, senhaNova, adminLogin, adminSenha) => {
+    await api.alterarSenha(loginAlvo, senhaNova, adminLogin, adminSenha);
+  },
+
   carregarSolicitacoes: async () => {
     set({ solicitacoes: await api.listarSolicitacoes() });
   },
 
-  aprovarSolicitacao: async (id, extras) => {
-    await api.aprovarSolicitacao(id, extras);
+  aprovarSolicitacao: async (id, extras, adminLogin, adminSenha) => {
+    await api.aprovarSolicitacao(id, extras, adminLogin, adminSenha);
     const [usuarios, solicitacoes] = await Promise.all([api.listarUsuarios(), api.listarSolicitacoes()]);
     set({ usuarios, solicitacoes });
   },
 
-  recusarSolicitacao: async (id) => {
-    await api.recusarSolicitacao(id);
+  recusarSolicitacao: async (id, adminLogin, adminSenha) => {
+    await api.recusarSolicitacao(id, adminLogin, adminSenha);
     set({ solicitacoes: await api.listarSolicitacoes() });
   },
 

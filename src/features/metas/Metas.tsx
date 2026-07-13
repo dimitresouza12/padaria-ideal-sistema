@@ -16,13 +16,9 @@ export function Metas() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <SectionLabel>Cadastro e configuração de metas</SectionLabel>
-        <button
-          type="button"
-          onClick={() => setAberto((v) => !v)}
-          className="text-[12.5px] font-bold text-accent hover:text-accent-dark"
-        >
-          {aberto ? 'Cancelar' : '+ Nova meta'}
-        </button>
+        <Button type="button" size="sm" variant={aberto ? 'ghost' : 'primary'} onClick={() => setAberto((v) => !v)}>
+          {aberto ? 'Cancelar' : '+ Nova Meta'}
+        </Button>
       </div>
 
       {aberto && <NovaMetaForm onFechar={() => setAberto(false)} />}

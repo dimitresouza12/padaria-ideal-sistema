@@ -4,7 +4,6 @@ import type { Perfil } from '@/types';
 export type AbaId =
   | 'dashboard'
   | 'vendas'
-  | 'historico'
   | 'produtos'
   | 'comercios'
   | 'metas'
@@ -23,8 +22,7 @@ export interface AbaDef {
 
 export const ABAS: AbaDef[] = [
   { id: 'dashboard', titulo: 'Dashboard', subtitulo: 'Visão consolidada da operação', perfis: ['admin', 'vendedor'] },
-  { id: 'vendas', titulo: 'Registrar Venda', subtitulo: 'Lançamento de pedido no atacado ou varejo', perfis: ['admin', 'vendedor'] },
-  { id: 'historico', titulo: 'Histórico de Vendas', subtitulo: 'Todas as vendas registradas, com filtros', perfis: ['admin'] },
+  { id: 'vendas', titulo: 'Vendas', subtitulo: 'Registrar venda e consultar o histórico', perfis: ['admin', 'vendedor'] },
   { id: 'produtos', titulo: 'Produtos', subtitulo: 'Catálogo e precificação base', perfis: ['admin'] },
   { id: 'comercios', titulo: 'Clientes / Comércios', subtitulo: 'Cadastro de parceiros B2B', perfis: ['admin'] },
   { id: 'metas', titulo: 'Metas', subtitulo: 'Cadastro e configuração das metas do período', perfis: ['admin'] },

@@ -131,25 +131,44 @@ export function DashboardAdmin() {
           Faturamento por mês · Julho é o período corrente (atualiza conforme vendas são registradas).
         </div>
         <div className="overflow-x-auto">
-          <div className="flex h-[180px] min-w-[460px] items-end gap-4">
-            {serie.map((s) => {
-              const alt = (s.total / maxSerie) * 100;
-              const atual = 'atual' in s && s.atual;
-              return (
-                <div key={s.rotulo} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-                  <div className="text-[11px] font-bold tabular-nums text-ink-soft">{fmtBRLCompact(s.total)}</div>
-                  <div
-                    className={`w-full max-w-[46px] rounded-t ${atual ? 'bg-accent ring-2 ring-accent-wash' : 'bg-[#dbcfbc]'}`}
-                    style={{ height: `${alt}%`, minHeight: 3 }}
-                  />
-                  <div className={`text-[11.5px] font-semibold ${atual ? 'text-accent-dark' : 'text-ink-muted'}`}>
-                    {s.rotulo}
-                    {atual ? ' (atual)' : ''}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {(() => {
+            const n = serie.length;
+            const padX = 34;
+            const largura = 700;
+            const baseY = 150;
+            const topoY = 20;
+            const innerW = largura - padX * 2;
+            const pontos = serie.map((s, i) => ({
+              ...s,
+              x: n > 1 ? padX + (i * innerW) / (n - 1) : padX,
+              y: baseY - (s.total / maxSerie) * (baseY - topoY),
+            }));
+            const path = pontos.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+            return (
+              <svg
+                viewBox={`0 0 ${largura} 190`}
+                className="w-full min-w-[460px]"
+                style={{ aspectRatio: `${largura} / 190` }}
+              >
+                <path d={path} fill="none" stroke="#8c6239" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+                {pontos.map((p) => {
+                  const atual = 'atual' in p && p.atual;
+                  return (
+                    <g key={p.rotulo}>
+                      <circle cx={p.x} cy={p.y} r={atual ? 6 : 4.5} fill={atual ? '#6f4c2a' : '#ffffff'} stroke="#8c6239" strokeWidth={2.5} />
+                      <text x={p.x} y={p.y - 14} textAnchor="middle" fontSize={12} fontWeight={700} fill={atual ? '#6f4c2a' : '#6b5d4f'}>
+                        {fmtBRLCompact(p.total)}
+                      </text>
+                      <text x={p.x} y={baseY + 26} textAnchor="middle" fontSize={12.5} fontWeight={600} fill={atual ? '#6f4c2a' : '#9c8e7d'}>
+                        {p.rotulo}
+                        {atual ? ' (atual)' : ''}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            );
+          })()}
         </div>
       </Card>
 
@@ -179,8 +198,8 @@ export function DashboardAdmin() {
         </Card>
 
         <Card className="p-5">
-          <div className="text-sm font-bold">Faturamento por região</div>
-          <div className="mb-4 text-xs text-ink-muted">Distribuição geográfica das vendas do período.</div>
+          <div className="text-sm font-bold">Faturamento por bairro</div>
+          <div className="mb-4 text-xs text-ink-muted">Distribuição por bairro/distrito das vendas do período.</div>
           <div className="flex flex-col gap-3">
             {regioes.map(([reg, total], i) => (
               <div key={reg}>
@@ -209,7 +228,7 @@ export function DashboardAdmin() {
             <p className="text-[12.5px] leading-relaxed text-ink-soft">
               Faturamento {fmtPct(Math.abs(m.deltaPct))} {subiu ? 'acima' : 'abaixo'} do mês anterior.
               {ranking[0] && ` ${ranking[0].nome} lidera com ${fmtBRLCompact(ranking[0].total)} (${fmtPct(ranking[0].pct)} da meta individual).`}
-              {regioes[0] && ` ${regioes[0][0]} é a região de maior faturamento.`}
+              {regioes[0] && ` ${regioes[0][0]} é o bairro de maior faturamento.`}
             </p>
           </Card>
           <Card className="border-t-[3px] border-t-warn p-4">
@@ -225,7 +244,7 @@ export function DashboardAdmin() {
             <div className="mb-2 text-[12.5px] font-bold text-accent-dark">Qual ação tomar</div>
             <p className="text-[12.5px] leading-relaxed text-ink-soft">
               {vencidos.length > 0 && 'Cobrar os recebíveis vencidos com prioridade (aba Lembretes). '}
-              {regioes.at(-1) && `Reforçar a presença comercial em ${regioes.at(-1)![0]}, região de menor faturamento. `}
+              {regioes.at(-1) && `Reforçar a presença comercial em ${regioes.at(-1)![0]}, bairro de menor faturamento. `}
               {ranking.at(-1) && `Apoiar ${ranking.at(-1)!.nome} para recuperar o ritmo de meta.`}
             </p>
           </Card>

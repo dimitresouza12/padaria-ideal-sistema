@@ -1,13 +1,12 @@
 import { useAuthStore } from '@/store/useAuthStore';
 import { abasDoPerfil, useUiStore } from '@/store/useUiStore';
 import { useDataStore } from '@/store/useDataStore';
-import { iconePorAba, IconRestaurar, IconSair } from '@/components/icons';
+import { iconePorAba, IconSair } from '@/components/icons';
 
 export function Sidebar() {
   const usuario = useAuthStore((s) => s.usuario);
   const logout = useAuthStore((s) => s.logout);
   const { abaAtiva, irPara, sidebarAberta, fecharSidebar } = useUiStore();
-  const restaurarExemplo = useDataStore((s) => s.restaurarExemplo);
   const solicitacoes = useDataStore((s) => s.solicitacoes);
 
   if (!usuario) return null;
@@ -63,16 +62,6 @@ export function Sidebar() {
         </nav>
 
         <div className="flex flex-col gap-2 border-t border-line px-4 py-4">
-          <button
-            onClick={() => {
-              if (confirm('Restaurar todos os dados de exemplo? As alterações desta sessão serão perdidas.'))
-                void restaurarExemplo();
-            }}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-soft transition hover:bg-plane"
-          >
-            <IconRestaurar size={15} />
-            Restaurar dados de exemplo
-          </button>
           <button
             onClick={logout}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-line-strong px-3 py-2 text-xs font-bold text-ink-soft transition hover:bg-plane"

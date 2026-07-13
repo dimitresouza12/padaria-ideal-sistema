@@ -6,12 +6,11 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { DashboardAdmin } from '@/features/dashboard/DashboardAdmin';
 import { DashboardVendedor } from '@/features/dashboard/DashboardVendedor';
-import { RegistrarVenda } from '@/features/vendas/RegistrarVenda';
+import { Vendas } from '@/features/vendas/Vendas';
 import { Lembretes } from '@/features/vendas/Lembretes';
 import { Produtos } from '@/features/produtos/Produtos';
 import { Comercios } from '@/features/comercios/Comercios';
 import { Configuracoes } from '@/features/configuracoes/Configuracoes';
-import { Historico } from '@/features/historico/Historico';
 import { Metas } from '@/features/metas/Metas';
 import { Comissoes } from '@/features/comissoes/Comissoes';
 import { Relatorios } from '@/features/relatorios/Relatorios';
@@ -62,9 +61,7 @@ function renderAba(aba: AbaId, perfil: 'admin' | 'vendedor') {
     case 'dashboard':
       return perfil === 'admin' ? <DashboardAdmin /> : <DashboardVendedor />;
     case 'vendas':
-      return <RegistrarVenda />;
-    case 'historico':
-      return <Historico />;
+      return <Vendas />;
     case 'produtos':
       return <Produtos />;
     case 'comercios':

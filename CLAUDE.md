@@ -67,18 +67,21 @@ e-mail — o e-mail em `Usuario.email` existe só como contato.
 - **Equipe e acessos**: aba **Configurações** permite ao gestor cadastrar um funcionário
   diretamente, ou aprovar/recusar pedidos de acesso enviados pela própria tela de login
   ("Solicitar cadastro"). O login de cada pessoa é derivado do primeiro nome, com
-  verificação de duplicidade.
-- **RBAC**: Administrador tem acesso total (10 abas); Vendedor só vê Dashboard, Registrar
-  Venda e Lembretes — e o campo "Vendedor responsável" no formulário de venda fica travado
-  no próprio usuário logado.
+  verificação de duplicidade. O admin também troca a própria senha ("Minha Conta") e a de
+  qualquer funcionário (botão "Senha" na tabela Equipe) — ambas exigem reconfirmar a senha
+  atual do admin, checada com bcrypt no Postgres.
+- **RBAC**: Administrador tem acesso total (9 abas); Vendedor só vê Dashboard, Vendas e
+  Lembretes — e o campo "Vendedor responsável" no formulário de venda fica travado no próprio
+  usuário logado.
 - **Dashboard do Administrador**: 4 KPIs com contexto (Faturamento, % vs Meta, Margem,
   Ticket Médio), gráfico de evolução mensal, ranking de vendedores e regiões em barras (sem
   gráfico de pizza), e 3 insights escritos (o que cresceu / o que preocupa / qual ação
   tomar) gerados dinamicamente a partir dos dados.
 - **Dashboard do Vendedor**: vendas do mês, comissão acumulada e barra de progresso contra
   a **meta individual** do vendedor.
-- **Histórico de Vendas**: ledger completo com filtros por vendedor, cliente, produto e
-  situação.
+- **Vendas**: aba única que junta o lançamento (botão "+ Registrar Venda" → formulário em
+  modal) e o histórico logo abaixo. O admin vê todas as vendas com filtros (vendedor, cliente,
+  produto, situação); o vendedor vê só as próprias (o filtro de vendedor fica oculto).
 - **Relatórios**: exportação em CSV (client-side) de vendas, comissões e catálogo de
   produtos.
 
@@ -119,6 +122,18 @@ Paleta "Padaria Premium" — abandona o azul genérico de tecnologia:
   login).
 - Sem emojis em nenhum ponto da interface; ícones são SVG minimalista (stroke).
 
+### Convenções de layout (desktop + mobile)
+
+- **Cadastro por modal, não por formulário sempre-aberto**: telas de listagem (Produtos,
+  Comércios, Equipe) têm um botão `+ Novo …` no topo que abre um `Modal` (`components/ui.tsx`);
+  editar reabre o mesmo modal pré-preenchido. Mantém a tabela como protagonista.
+- **Tabelas viram cards no mobile**: toda tabela de dados renderiza `<table>` só em `sm+`
+  (`hidden sm:block`) e uma lista de `Card` empilhados abaixo de `sm` (`sm:hidden`) — senão as
+  colunas da direita (incluindo botões de ação) ficam inalcançáveis no celular. Vale para
+  Produtos, Comércios, Equipe, Comissões e Histórico.
+- **Sub-abas** (`SubTabs` em `components/ui.tsx`) quebram telas densas em seções: Configurações
+  usa Minha Conta · Equipe · Solicitações (com badge de pendências) em vez de empilhar tudo.
+
 ## Segurança — o que MUDA em produção
 
 Este protótipo faz a validação de login **no navegador**, só para demonstrar o fluxo de
@@ -133,6 +148,21 @@ UI. Isso é inseguro por definição e **não deve ir para produção assim**. O
   independente da validação da API.
 - Upload de logo/branding via **object storage** (Supabase Storage/S3), nunca commitado no
   repositório de código.
+
+### Estado atual (Supabase real já conectado, sem backend próprio)
+
+O app fala direto com o Postgres via `anon key` (pública no bundle) — não existe camada de
+servidor. Bcrypt já está em uso (senhas com hash, verificadas em função `SECURITY DEFINER` no
+Postgres). Ações administrativas sensíveis (`criar_funcionario`, `aprovar_solicitacao`,
+`recusar_solicitacao`) agora exigem reconfirmar login+senha do admin dentro da própria função
+(verificado com bcrypt), já que a `anon key` sozinha não carrega identidade nenhuma. A função de
+demo `reset_dados_exemplo` teve o `EXECUTE` revogado de `public` — não é mais alcançável pela API.
+
+Risco residual, aceito por ora: as tabelas (`produtos`, `vendas`, `comercios`, `metas`, etc.) têm
+policy `USING(true)` para `anon` — sem uma sessão real (Supabase Auth/JWT), não dá para
+restringir por role no banco. Qualquer um com a `anon key` (pública) pode ler/escrever essas
+tabelas direto via REST, contornando a UI. Fechar isso de verdade exige adotar Supabase Auth (ver
+plano acima) — projeto futuro, não feito nesta rodada.
 
 ## Stack recomendada para produção
 

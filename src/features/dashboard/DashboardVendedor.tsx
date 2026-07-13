@@ -27,8 +27,10 @@ export function DashboardVendedor() {
   return (
     <div className="flex flex-col gap-5">
       <Card className="p-6">
-        <div className="text-xs font-semibold text-ink-soft">Bem-vindo(a),</div>
-        <div className="mt-0.5 text-[20px] font-extrabold">{primeiroNome(usuario.nome)}</div>
+        <div className="text-[20px] font-extrabold">
+          <span className="text-xs font-semibold text-ink-soft">Bem-vindo(a), </span>
+          {primeiroNome(usuario.nome)}
+        </div>
         <div className="mt-1 text-xs text-ink-muted">Desempenho individual — Julho de 2026</div>
       </Card>
 
