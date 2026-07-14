@@ -16,42 +16,45 @@ export function Header() {
   const pendencias = vendas.filter((v) => v.status === 'pendente' || v.status === 'vencido').length;
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-line bg-white px-5 py-3.5 lg:px-7">
-      <div className="flex items-center gap-3">
+    <header className="flex flex-nowrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3.5 lg:px-7">
+      <div className="flex min-w-0 items-center gap-3">
         <button
           onClick={toggleSidebar}
-          className="rounded-lg border border-line-strong p-2 text-ink-soft transition hover:bg-plane lg:hidden"
+          className="shrink-0 rounded-lg border border-line-strong p-2 text-ink-soft transition hover:bg-plane lg:hidden"
           aria-label="Abrir menu"
         >
           <IconMenu size={16} />
         </button>
-        <div>
-          <div className="text-[15px] font-bold">{aba.titulo}</div>
-          <div className="text-[11.5px] text-ink-muted">{aba.subtitulo}</div>
+        <div className="min-w-0">
+          <div className="truncate text-[15px] font-bold">{aba.titulo}</div>
+          <div className="truncate text-[11.5px] text-ink-muted">{aba.subtitulo}</div>
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-4">
         <button
           onClick={() => irPara('lembretes')}
-          className="inline-flex items-center gap-2 rounded-lg border border-line-strong px-3 py-1.5 text-xs font-bold text-ink-soft transition hover:bg-plane"
+          aria-label="Lembretes de pagamento"
+          className="relative inline-flex items-center gap-2 rounded-lg border border-line-strong p-2 text-ink-soft transition hover:bg-plane sm:px-3 sm:py-1.5"
         >
-          <IconLembrete size={16} />
-          <span className="hidden sm:inline">Lembretes</span>
-          {pendencias > 0 && (
-            <span className="flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-bad-strong px-1 text-[10px] font-extrabold text-white">
-              {pendencias}
-            </span>
-          )}
+          <span className="relative inline-flex">
+            <IconLembrete size={16} />
+            {pendencias > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-bad-strong px-1 text-[9px] font-extrabold text-white">
+                {pendencias}
+              </span>
+            )}
+          </span>
+          <span className="hidden text-xs font-bold sm:inline">Lembretes</span>
         </button>
 
         <div className="hidden h-6 w-px bg-line-strong sm:block" />
 
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-gradient-to-br from-gold to-accent text-[12.5px] font-bold text-white">
+        <div className="hidden items-center gap-2.5 sm:flex">
+          <div className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-accent text-[11.5px] font-bold text-white">
             {iniciais(usuario.nome)}
           </div>
-          <div className="hidden sm:block">
+          <div>
             <div className="text-[12.5px] font-bold leading-tight">{primeiroNome(usuario.nome)}</div>
             <div className="text-[11px] text-ink-muted">{ROLE_LABEL[usuario.perfil]}</div>
           </div>

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useToastStore } from '@/store/useToastStore';
 import { Card, Button, Tag, EmptyState, Modal, SubTabs } from '@/components/ui';
 import { fmtData, primeiroNome } from '@/lib/format';
 import type { Usuario } from '@/types';
@@ -8,7 +9,7 @@ import type { Usuario } from '@/types';
 /** Percentual "limpo" (sem ruído de ponto flutuante) a partir da fração salva. */
 const fracaoParaPct = (fracao: number): string => String(+(fracao * 100).toFixed(2));
 
-const FUNCIONARIO_INICIAL = { nome: '', email: '', senha: '', taxa_comissao: '10', meta_individual: '', senhaAdmin: '' };
+const FUNCIONARIO_INICIAL = { nome: '', email: '', senha: '', taxa_comissao: '10', meta_individual: '' };
 
 type SubAba = 'conta' | 'equipe' | 'solicitacoes';
 
@@ -44,9 +45,9 @@ export function Configuracoes() {
 }
 
 function MinhaSenha() {
-  const alterarSenha = useDataStore((s) => s.alterarSenha);
+  const alterarMinhaSenha = useDataStore((s) => s.alterarMinhaSenha);
   const usuario = useAuthStore((s) => s.usuario);
-  const adminLogin = usuario ? primeiroNome(usuario.nome) : '';
+  const meuLogin = usuario ? primeiroNome(usuario.nome) : '';
 
   const [senhaAtual, setSenhaAtual] = useState('');
   const [senhaNova, setSenhaNova] = useState('');
@@ -54,18 +55,22 @@ function MinhaSenha() {
   const [erro, setErro] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  // Ref, não state: evita duplo clique síncrono barrando na mesma closure.
+  const salvandoRef = useRef(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (salvandoRef.current) return;
     setErro(null);
     setSucesso(false);
     if (senhaNova !== senhaNovaConfirma) {
       setErro('A confirmação não bate com a nova senha.');
       return;
     }
+    salvandoRef.current = true;
     setSalvando(true);
     try {
-      await alterarSenha(adminLogin, senhaNova, adminLogin, senhaAtual);
+      await alterarMinhaSenha(senhaAtual, senhaNova, meuLogin);
       setSenhaAtual('');
       setSenhaNova('');
       setSenhaNovaConfirma('');
@@ -73,6 +78,7 @@ function MinhaSenha() {
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível alterar a senha.');
     } finally {
+      salvandoRef.current = false;
       setSalvando(false);
     }
   };
@@ -109,6 +115,7 @@ function SolicitacoesPendentes() {
   const solicitacoes = useDataStore((s) => s.solicitacoes);
   const aprovarSolicitacao = useDataStore((s) => s.aprovarSolicitacao);
   const recusarSolicitacao = useDataStore((s) => s.recusarSolicitacao);
+  const notificar = useToastStore((s) => s.notificar);
   const usuario = useAuthStore((s) => s.usuario);
   const adminLogin = usuario ? primeiroNome(usuario.nome) : '';
 
@@ -116,51 +123,80 @@ function SolicitacoesPendentes() {
   const [aprovando, setAprovando] = useState<string | null>(null);
   const [recusando, setRecusando] = useState<string | null>(null);
   const [extras, setExtras] = useState({ taxa_comissao: '10', meta_individual: '20000' });
-  const [senhaAdmin, setSenhaAdmin] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  // Ref, não state: evita duplo clique síncrono barrando na mesma closure.
+  const salvandoRef = useRef(false);
+  // Senha provisória gerada ao aprovar — some da tela quando o admin fecha o aviso.
+  const [senhaGerada, setSenhaGerada] = useState<{ nome: string; senha: string } | null>(null);
 
   const abrirAprovacao = (id: string) => {
     setRecusando(null);
     setErro(null);
-    setSenhaAdmin('');
     setAprovando(id);
   };
   const abrirRecusa = (id: string) => {
     setAprovando(null);
     setErro(null);
-    setSenhaAdmin('');
     setRecusando(id);
   };
 
   const confirmarAprovacao = async (id: string) => {
+    if (salvandoRef.current) return;
+    salvandoRef.current = true;
     setErro(null);
+    setSalvando(true);
     try {
-      await aprovarSolicitacao(
+      const nomeSolicitante = solicitacoes.find((s) => s.id === id)?.nome ?? '';
+      const senhaTemporaria = await aprovarSolicitacao(
         id,
         { taxa_comissao: (Number(extras.taxa_comissao) || 0) / 100, meta_individual: Number(extras.meta_individual) || 0 },
         adminLogin,
-        senhaAdmin,
+        '',
       );
       setAprovando(null);
-      setSenhaAdmin('');
+      if (senhaTemporaria) {
+        setSenhaGerada({ nome: nomeSolicitante, senha: senhaTemporaria });
+      } else {
+        notificar('Funcionário cadastrado a partir da solicitação.');
+      }
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível aprovar.');
+    } finally {
+      salvandoRef.current = false;
+      setSalvando(false);
     }
   };
 
   const confirmarRecusa = async (id: string) => {
+    if (salvandoRef.current) return;
+    salvandoRef.current = true;
     setErro(null);
+    setSalvando(true);
     try {
-      await recusarSolicitacao(id, adminLogin, senhaAdmin);
+      await recusarSolicitacao(id, adminLogin, '');
       setRecusando(null);
-      setSenhaAdmin('');
+      notificar('Solicitação recusada.', 'neutral');
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível recusar.');
+    } finally {
+      salvandoRef.current = false;
+      setSalvando(false);
     }
   };
 
   return (
     <Card className="overflow-hidden">
+      {senhaGerada && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-good-tint p-4 text-[13px] text-good">
+          <span>
+            <b>{senhaGerada.nome}</b> foi cadastrado(a). Senha provisória:{' '}
+            <b className="font-mono">{senhaGerada.senha}</b> — repasse para a pessoa trocar em
+            Configurações → Minha Conta no primeiro acesso.
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => setSenhaGerada(null)}>Ok, anotei</Button>
+        </div>
+      )}
       {pendentes.length === 0 ? (
         <EmptyState>Nenhuma solicitação pendente no momento.</EmptyState>
       ) : (
@@ -194,22 +230,18 @@ function SolicitacoesPendentes() {
                     <label className="field-label">Meta individual do período (R$)</label>
                     <input type="number" className="field !w-40" min={0} value={extras.meta_individual} onChange={(e) => setExtras((x) => ({ ...x, meta_individual: e.target.value }))} />
                   </div>
-                  <div>
-                    <label className="field-label">Confirme sua senha de admin</label>
-                    <input type="password" className="field !w-40" value={senhaAdmin} onChange={(e) => setSenhaAdmin(e.target.value)} />
-                  </div>
-                  <Button size="sm" onClick={() => void confirmarAprovacao(s.id)} disabled={!senhaAdmin}>Confirmar Aprovação</Button>
+                  <Button size="sm" onClick={() => void confirmarAprovacao(s.id)} disabled={salvando}>
+                    {salvando ? 'Confirmando…' : 'Confirmar Aprovação'}
+                  </Button>
                   {erro && <div className="w-full text-[12.5px] font-semibold text-bad">{erro}</div>}
                 </div>
               )}
 
               {recusando === s.id && (
                 <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg bg-plane p-4">
-                  <div>
-                    <label className="field-label">Confirme sua senha de admin</label>
-                    <input type="password" className="field !w-40" value={senhaAdmin} onChange={(e) => setSenhaAdmin(e.target.value)} />
-                  </div>
-                  <Button variant="danger" size="sm" onClick={() => void confirmarRecusa(s.id)} disabled={!senhaAdmin}>Confirmar Recusa</Button>
+                  <Button variant="danger" size="sm" onClick={() => void confirmarRecusa(s.id)} disabled={salvando}>
+                    {salvando ? 'Confirmando…' : 'Confirmar Recusa'}
+                  </Button>
                   {erro && <div className="w-full text-[12.5px] font-semibold text-bad">{erro}</div>}
                 </div>
               )}
@@ -315,16 +347,19 @@ function Equipe() {
 
       <ModalNovoFuncionario aberto={modalNovo} onFechar={() => setModalNovo(false)} adminLogin={adminLogin} />
       <ModalEditarFuncionario alvo={editando} onFechar={() => setEditando(null)} />
-      <ModalAlterarSenha alvo={senhaAlvo} onFechar={() => setSenhaAlvo(null)} adminLogin={adminLogin} />
+      <ModalAlterarSenha alvo={senhaAlvo} onFechar={() => setSenhaAlvo(null)} />
     </div>
   );
 }
 
 function ModalNovoFuncionario({ aberto, onFechar, adminLogin }: { aberto: boolean; onFechar: () => void; adminLogin: string }) {
   const criarFuncionario = useDataStore((s) => s.criarFuncionario);
+  const notificar = useToastStore((s) => s.notificar);
   const [form, setForm] = useState(FUNCIONARIO_INICIAL);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  // Ref, não state: evita duplo clique síncrono barrando na mesma closure.
+  const salvandoRef = useRef(false);
 
   const set = (campo: keyof typeof FUNCIONARIO_INICIAL) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [campo]: e.target.value }));
@@ -337,6 +372,8 @@ function ModalNovoFuncionario({ aberto, onFechar, adminLogin }: { aberto: boolea
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (salvandoRef.current) return;
+    salvandoRef.current = true;
     setErro(null);
     setSalvando(true);
     try {
@@ -347,12 +384,14 @@ function ModalNovoFuncionario({ aberto, onFechar, adminLogin }: { aberto: boolea
         taxa_comissao: (Number(form.taxa_comissao) || 0) / 100,
         meta_individual: Number(form.meta_individual) || 0,
         adminLogin,
-        adminSenha: form.senhaAdmin,
+        adminSenha: '',
       });
+      notificar('Funcionário cadastrado.');
       fechar();
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível cadastrar o funcionário.');
     } finally {
+      salvandoRef.current = false;
       setSalvando(false);
     }
   };
@@ -385,13 +424,9 @@ function ModalNovoFuncionario({ aberto, onFechar, adminLogin }: { aberto: boolea
             <input className="field" type="number" min={0} max={100} value={form.taxa_comissao} onChange={set('taxa_comissao')} required />
           </div>
           <div>
-            <label className="field-label">Meta individual do período (R$)</label>
-            <input className="field" type="number" min={0} value={form.meta_individual} onChange={set('meta_individual')} required />
+            <label className="field-label">Meta individual do período (R$) <span className="font-normal normal-case text-ink-muted">(opcional)</span></label>
+            <input className="field" type="number" min={0} placeholder="Definir depois em Metas" value={form.meta_individual} onChange={set('meta_individual')} />
           </div>
-        </div>
-        <div>
-          <label className="field-label">Confirme sua senha de admin</label>
-          <input className="field" type="password" value={form.senhaAdmin} onChange={set('senhaAdmin')} required />
         </div>
         {erro && <div className="rounded-lg bg-bad-tint px-3 py-2.5 text-[12.5px] font-semibold text-bad">{erro}</div>}
         <div className="flex justify-end gap-2 border-t border-line pt-4">
@@ -405,9 +440,12 @@ function ModalNovoFuncionario({ aberto, onFechar, adminLogin }: { aberto: boolea
 
 function ModalEditarFuncionario({ alvo, onFechar }: { alvo: Usuario | null; onFechar: () => void }) {
   const atualizarFuncionario = useDataStore((s) => s.atualizarFuncionario);
+  const notificar = useToastStore((s) => s.notificar);
   const [taxa, setTaxa] = useState('');
   const [meta, setMeta] = useState('');
   const [salvando, setSalvando] = useState(false);
+  // Ref, não state: evita duplo clique síncrono barrando na mesma closure.
+  const salvandoRef = useRef(false);
 
   // Preenche os campos toda vez que um alvo novo é aberto.
   useEffect(() => {
@@ -423,15 +461,20 @@ function ModalEditarFuncionario({ alvo, onFechar }: { alvo: Usuario | null; onFe
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!alvo) return;
+    if (salvandoRef.current || !alvo) return;
+    salvandoRef.current = true;
     setSalvando(true);
     try {
       await atualizarFuncionario(alvo.id, {
         taxa_comissao: (Number(taxa) || 0) / 100,
         meta_individual: Number(meta) || 0,
       });
+      notificar('Alterações salvas.');
       fechar();
+    } catch {
+      notificar('Não foi possível salvar as alterações. Verifique sua conexão e tente novamente.', 'bad');
     } finally {
+      salvandoRef.current = false;
       setSalvando(false);
     }
   };
@@ -458,31 +501,35 @@ function ModalEditarFuncionario({ alvo, onFechar }: { alvo: Usuario | null; onFe
   );
 }
 
-function ModalAlterarSenha({ alvo, onFechar, adminLogin }: { alvo: Usuario | null; onFechar: () => void; adminLogin: string }) {
-  const alterarSenha = useDataStore((s) => s.alterarSenha);
+function ModalAlterarSenha({ alvo, onFechar }: { alvo: Usuario | null; onFechar: () => void }) {
+  const alterarSenhaFuncionario = useDataStore((s) => s.alterarSenhaFuncionario);
+  const notificar = useToastStore((s) => s.notificar);
   const [nova, setNova] = useState('');
-  const [admin, setAdmin] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  // Ref, não state: evita duplo clique síncrono barrando na mesma closure.
+  const salvandoRef = useRef(false);
 
   const fechar = () => {
     setNova('');
-    setAdmin('');
     setErro(null);
     onFechar();
   };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!alvo) return;
+    if (salvandoRef.current || !alvo) return;
+    salvandoRef.current = true;
     setErro(null);
     setSalvando(true);
     try {
-      await alterarSenha(primeiroNome(alvo.nome), nova, adminLogin, admin);
+      await alterarSenhaFuncionario(alvo.id, nova);
+      notificar('Senha alterada.');
       fechar();
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível alterar a senha.');
     } finally {
+      salvandoRef.current = false;
       setSalvando(false);
     }
   };
@@ -494,14 +541,10 @@ function ModalAlterarSenha({ alvo, onFechar, adminLogin }: { alvo: Usuario | nul
           <label className="field-label">Nova senha</label>
           <input className="field" type="password" value={nova} onChange={(e) => setNova(e.target.value)} required />
         </div>
-        <div>
-          <label className="field-label">Confirme sua senha de admin</label>
-          <input className="field" type="password" value={admin} onChange={(e) => setAdmin(e.target.value)} required />
-        </div>
         {erro && <div className="rounded-lg bg-bad-tint px-3 py-2.5 text-[12.5px] font-semibold text-bad">{erro}</div>}
         <div className="flex justify-end gap-2 border-t border-line pt-4">
           <Button type="button" variant="ghost" onClick={fechar}>Cancelar</Button>
-          <Button type="submit" disabled={salvando || !nova || !admin}>{salvando ? 'Salvando…' : 'Alterar Senha'}</Button>
+          <Button type="submit" disabled={salvando || !nova}>{salvando ? 'Salvando…' : 'Alterar Senha'}</Button>
         </div>
       </form>
     </Modal>

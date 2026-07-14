@@ -2,7 +2,7 @@
  * Primitivos de UI do design system "Padaria Premium".
  * Componentes pequenos, sem estado, reutilizados por todas as telas.
  */
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /* ---------------- Card ---------------- */
@@ -164,6 +164,9 @@ export function Modal({
   onFechar: () => void;
   children: ReactNode;
 }) {
+  const corpoRef = useRef<HTMLDivElement>(null);
+  const [podeRolar, setPodeRolar] = useState(false);
+
   useEffect(() => {
     if (!aberto) return;
     const onKey = (e: KeyboardEvent) => {
@@ -172,6 +175,20 @@ export function Modal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [aberto, onFechar]);
+
+  // Mostra o indicador de rolagem sempre que houver mais conteúdo abaixo da
+  // área visível; some sozinho ao chegar no fim. ResizeObserver cobre trocas
+  // de conteúdo (ex.: alternar entre ver/editar) sem precisar de mais deps.
+  useEffect(() => {
+    if (!aberto) return;
+    const el = corpoRef.current;
+    if (!el) return;
+    const verificar = () => setPodeRolar(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+    verificar();
+    const obs = new ResizeObserver(verificar);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [aberto]);
 
   if (!aberto) return null;
 
@@ -189,8 +206,60 @@ export function Modal({
             Fechar
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
+        <div
+          ref={corpoRef}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setPodeRolar(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+          }}
+          className="max-h-[70vh] overflow-y-auto p-5"
+        >
+          {children}
+        </div>
+        {podeRolar && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-10 items-end justify-center rounded-b-2xl bg-gradient-to-t from-surface via-surface/80 to-transparent pb-1.5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-ink-muted">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Modal de confirmação para ações destrutivas (excluir/remover) — substitui
+ * o `confirm()` nativo do navegador em todo o app, para ficar consistente
+ * com o resto da UI (e funcionar em qualquer navegador/dispositivo do mesmo
+ * jeito).
+ */
+export function ConfirmModal({
+  aberto,
+  titulo,
+  mensagem,
+  onConfirmar,
+  onCancelar,
+  confirmando = false,
+  textoConfirmar = 'Remover',
+}: {
+  aberto: boolean;
+  titulo: string;
+  mensagem: ReactNode;
+  onConfirmar: () => void;
+  onCancelar: () => void;
+  confirmando?: boolean;
+  textoConfirmar?: string;
+}) {
+  return (
+    <Modal aberto={aberto} titulo={titulo} onFechar={onCancelar}>
+      <div className="text-[13px] leading-relaxed text-ink-soft">{mensagem}</div>
+      <div className="mt-5 flex justify-end gap-2 border-t border-line pt-4">
+        <Button type="button" variant="ghost" onClick={onCancelar}>Cancelar</Button>
+        <Button type="button" variant="danger" onClick={onConfirmar} disabled={confirmando}>
+          {confirmando ? 'Removendo…' : textoConfirmar}
+        </Button>
+      </div>
+    </Modal>
   );
 }

@@ -125,16 +125,6 @@ function FormLogin({ onSolicitarAcesso }: { onSolicitarAcesso: () => void }) {
         </button>
       </div>
 
-      <div className="mt-[18px] border-t border-line pt-[18px] text-[11.5px] leading-[1.7] text-ink-muted">
-        <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em]">
-          Ambiente de demonstração
-        </span>
-        Administrador — <b className="text-ink-soft">Roberto</b> /{' '}
-        <b className="text-ink-soft">admin123</b>
-        <br />
-        Vendedor — <b className="text-ink-soft">Ana</b> /{' '}
-        <b className="text-ink-soft">venda123</b>
-      </div>
     </>
   );
 }

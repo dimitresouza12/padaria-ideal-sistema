@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Button, Modal, SectionLabel, EmptyState } from '@/components/ui';
+import { Card, Button, Modal, ConfirmModal, SectionLabel, EmptyState } from '@/components/ui';
 import { fmtBRL } from '@/lib/format';
 import type { Produto } from '@/types';
 
@@ -17,6 +17,11 @@ export function Produtos() {
   const [form, setForm] = useState(FORM_INICIAL);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [aberto, setAberto] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  // Ref, não state: evita duplo clique síncrono barrando na mesma closure.
+  const salvandoRef = useRef(false);
+  const [alvoRemocao, setAlvoRemocao] = useState<Produto | null>(null);
+  const [removendo, setRemovendo] = useState(false);
 
   // O catálogo mostra apenas produtos ativos: ao remover, o item sai da lista
   // na hora (a exclusão é lógica — vendas antigas continuam íntegras).
@@ -52,6 +57,9 @@ export function Produtos() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (salvandoRef.current) return;
+    salvandoRef.current = true;
+    setSalvando(true);
     const payload = {
       nome: form.nome.trim(),
       sku: form.sku.trim(),
@@ -61,21 +69,33 @@ export function Produtos() {
       preco_atacado: Number(form.preco_atacado) || 0,
       qtd_min_atacado: Number(form.qtd_min_atacado) || 10,
     };
-    if (editandoId) {
-      await editarProduto(editandoId, payload);
-      notificar('Alterações salvas.');
-    } else {
-      await criarProduto(payload);
-      notificar('Produto cadastrado.');
+    try {
+      if (editandoId) {
+        await editarProduto(editandoId, payload);
+        notificar('Alterações salvas.');
+      } else {
+        await criarProduto(payload);
+        notificar('Produto cadastrado.');
+      }
+      fechar();
+    } catch {
+      notificar('Não foi possível salvar o produto. Verifique sua conexão e tente novamente.', 'bad');
+    } finally {
+      salvandoRef.current = false;
+      setSalvando(false);
     }
-    fechar();
   };
 
-  const onRemover = async (p: Produto) => {
-    if (confirm(`Remover "${p.nome}" do catálogo? Vendas já registradas com este produto não são afetadas.`)) {
-      await removerProduto(p.id);
-      if (editandoId === p.id) fechar();
-      notificar(`"${p.nome}" foi excluído do catálogo.`, 'neutral');
+  const confirmarRemocao = async () => {
+    if (!alvoRemocao) return;
+    setRemovendo(true);
+    try {
+      await removerProduto(alvoRemocao.id);
+      if (editandoId === alvoRemocao.id) fechar();
+      notificar(`"${alvoRemocao.nome}" foi excluído do catálogo.`, 'neutral');
+      setAlvoRemocao(null);
+    } finally {
+      setRemovendo(false);
     }
   };
 
@@ -117,7 +137,7 @@ export function Produtos() {
                       <td className="whitespace-nowrap px-5 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           <Button variant="secondary" size="sm" onClick={() => abrirEdicao(p)}>Editar</Button>
-                          <Button variant="danger" size="sm" onClick={() => onRemover(p)}>Remover</Button>
+                          <Button variant="danger" size="sm" onClick={() => setAlvoRemocao(p)}>Remover</Button>
                         </div>
                       </td>
                     </tr>
@@ -141,7 +161,7 @@ export function Produtos() {
                 </dl>
                 <div className="mt-3 flex gap-2 border-t border-line pt-3">
                   <Button variant="secondary" size="sm" className="flex-1" onClick={() => abrirEdicao(p)}>Editar</Button>
-                  <Button variant="danger" size="sm" className="flex-1" onClick={() => onRemover(p)}>Remover</Button>
+                  <Button variant="danger" size="sm" className="flex-1" onClick={() => setAlvoRemocao(p)}>Remover</Button>
                 </div>
               </Card>
             ))}
@@ -181,10 +201,23 @@ export function Produtos() {
           </div>
           <div className="flex justify-end gap-2 border-t border-line pt-4">
             <Button type="button" variant="ghost" onClick={fechar}>Cancelar</Button>
-            <Button type="submit">{editandoId ? 'Salvar Alterações' : 'Cadastrar Produto'}</Button>
+            <Button type="submit" disabled={salvando}>
+              {salvando ? 'Salvando…' : editandoId ? 'Salvar Alterações' : 'Cadastrar Produto'}
+            </Button>
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        aberto={alvoRemocao !== null}
+        titulo="Remover produto"
+        mensagem={
+          <>Remover <b>&quot;{alvoRemocao?.nome}&quot;</b> do catálogo? Vendas já registradas com este produto não são afetadas.</>
+        }
+        onCancelar={() => setAlvoRemocao(null)}
+        confirmando={removendo}
+        onConfirmar={() => void confirmarRemocao()}
+      />
     </div>
   );
 }

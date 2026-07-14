@@ -7,7 +7,10 @@ export default {
         // Paleta "Padaria Premium" — creme, café profundo e trigo/dourado fosco
         plane: '#faf8f5',
         surface: '#ffffff',
-        ink: { DEFAULT: '#2e2520', soft: '#6b5d4f', muted: '#9c8e7d' },
+        // muted escurecido de #9c8e7d para #786a5a: o tom original tinha
+        // contraste de só 3.0:1 sobre plane/surface (abaixo do mínimo AA de
+        // 4.5:1 para texto normal) — usado em rótulos pequenos por toda a UI.
+        ink: { DEFAULT: '#2e2520', soft: '#6b5d4f', muted: '#786a5a' },
         line: { DEFAULT: '#ece4d8', strong: '#ddd1c0' },
         accent: { DEFAULT: '#8c6239', dark: '#6f4c2a', wash: '#f3ebdb' },
         gold: { DEFAULT: '#c5a059', soft: '#e6d4ac' },

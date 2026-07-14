@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Tag, Button, EmptyState, Modal } from '@/components/ui';
+import { Card, Tag, Button, EmptyState, Modal, ConfirmModal } from '@/components/ui';
 import { resolverPreco } from '@/lib/pricing';
 import { fmtBRL, fmtBRLCompact, fmtData } from '@/lib/format';
 import type { FormaPagamento, StatusVenda, Venda } from '@/types';
@@ -194,7 +194,10 @@ function DetalheEEdicaoVenda({
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Ref, não state: evita duplo clique síncrono barrando na mesma closure.
+  const salvandoRef = useRef(false);
 
   // Vendedores/produtos podem estar inativos: garante que a opção atual da
   // venda apareça no seletor mesmo assim, para não "sumir" ao abrir a edição.
@@ -235,7 +238,8 @@ function DetalheEEdicaoVenda({
 
   const onSalvar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!produto || quantidade <= 0) return;
+    if (salvandoRef.current || !produto || quantidade <= 0) return;
+    salvandoRef.current = true;
     setErro(null);
     setSalvando(true);
     try {
@@ -254,12 +258,12 @@ function DetalheEEdicaoVenda({
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.');
     } finally {
+      salvandoRef.current = false;
       setSalvando(false);
     }
   };
 
   const onExcluir = async () => {
-    if (!confirm('Excluir esta venda definitivamente? Esta ação não pode ser desfeita.')) return;
     setExcluindo(true);
     try {
       await removerVenda(venda.id);
@@ -268,6 +272,7 @@ function DetalheEEdicaoVenda({
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível excluir a venda.');
       setExcluindo(false);
+      setConfirmandoExclusao(false);
     }
   };
 
@@ -303,13 +308,22 @@ function DetalheEEdicaoVenda({
         {erro && <div className="rounded-lg bg-bad-tint px-3 py-2.5 text-[12.5px] font-semibold text-bad">{erro}</div>}
 
         <div className="flex justify-end gap-2 border-t border-line pt-4">
-          <Button variant="danger" size="sm" onClick={() => void onExcluir()} disabled={excluindo}>
+          <Button variant="danger" size="sm" onClick={() => setConfirmandoExclusao(true)} disabled={excluindo}>
             {excluindo ? 'Excluindo…' : 'Excluir venda'}
           </Button>
           <Button variant="secondary" size="sm" onClick={() => setEditando(true)}>
             Editar venda
           </Button>
         </div>
+
+        <ConfirmModal
+          aberto={confirmandoExclusao}
+          titulo="Excluir venda"
+          mensagem="Excluir esta venda definitivamente? Esta ação não pode ser desfeita."
+          onCancelar={() => setConfirmandoExclusao(false)}
+          confirmando={excluindo}
+          onConfirmar={() => void onExcluir()}
+        />
       </div>
     );
   }

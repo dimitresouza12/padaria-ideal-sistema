@@ -5,13 +5,17 @@ import { Toaster } from '@/components/Toaster';
 
 /**
  * Router SPA controlado por estado:
+ *   - carregando sessão -> tela em branco (evita "piscar" a tela de login
+ *     enquanto a sessão do Supabase Auth é revalidada contra o banco);
  *   - sem sessão  -> Tela de Login (acesso inicial obrigatório);
  *   - com sessão  -> Layout principal (sidebar + header + aba ativa por perfil).
- *
- * A sessão vive só em memória, então um refresh volta ao login.
  */
 export default function App() {
   const autenticado = useAuthStore((s) => s.usuario !== null);
+  const carregandoSessao = useAuthStore((s) => s.carregandoSessao);
+
+  if (carregandoSessao) return null;
+
   return (
     <>
       {autenticado ? <AppLayout /> : <LoginScreen />}

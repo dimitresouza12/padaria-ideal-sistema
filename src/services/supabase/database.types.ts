@@ -223,6 +223,7 @@ export type Database = {
       usuarios: {
         Row: {
           ativo: boolean
+          auth_user_id: string | null
           criado_em: string
           email: string
           id: string
@@ -233,6 +234,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          auth_user_id?: string | null
           criado_em?: string
           email: string
           id?: string
@@ -243,6 +245,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          auth_user_id?: string | null
           criado_em?: string
           email?: string
           id?: string
@@ -356,6 +359,7 @@ export type Database = {
         }
         Returns: {
           ativo: boolean
+          auth_user_id: string | null
           criado_em: string
           email: string
           id: string
@@ -383,6 +387,7 @@ export type Database = {
         }
         Returns: {
           ativo: boolean
+          auth_user_id: string | null
           criado_em: string
           email: string
           id: string
@@ -402,6 +407,7 @@ export type Database = {
         Args: { p_login: string; p_senha: string }
         Returns: {
           ativo: boolean
+          auth_user_id: string | null
           criado_em: string
           email: string
           id: string
@@ -417,6 +423,8 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      is_admin: { Args: never; Returns: boolean }
+      obter_email_por_login: { Args: { p_login: string }; Returns: string }
       recusar_solicitacao: {
         Args: { p_admin_login: string; p_admin_senha: string; p_id: string }
         Returns: undefined
@@ -432,6 +440,7 @@ export type Database = {
           status: Database["public"]["Enums"]["status_solicitacao"]
         }[]
       }
+      usuario_atual_id: { Args: never; Returns: string }
     }
     Enums: {
       forma_pagamento: "a_vista" | "a_prazo"
@@ -440,7 +449,7 @@ export type Database = {
       periodicidade: "semanal" | "mensal" | "trimestral" | "personalizado"
       status_solicitacao: "pendente" | "aprovado" | "recusado"
       status_venda: "pago" | "pendente" | "vencido"
-      tipo_meta: "geral" | "por_produto"
+      tipo_meta: "geral" | "por_produto" | "por_vendedor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -574,7 +583,7 @@ export const Constants = {
       periodicidade: ["semanal", "mensal", "trimestral", "personalizado"],
       status_solicitacao: ["pendente", "aprovado", "recusado"],
       status_venda: ["pago", "pendente", "vencido"],
-      tipo_meta: ["geral", "por_produto"],
+      tipo_meta: ["geral", "por_produto", "por_vendedor"],
     },
   },
 } as const

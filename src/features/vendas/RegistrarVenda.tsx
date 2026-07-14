@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useDataStore } from '@/store/useDataStore';
 import { useUiStore } from '@/store/useUiStore';
+import { useToastStore } from '@/store/useToastStore';
 import { Card, Button, Tag } from '@/components/ui';
 import { resolverPreco } from '@/lib/pricing';
 import { fmtBRL, fmtData } from '@/lib/format';
@@ -18,6 +19,7 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
   const { produtos: todosProdutos, comercios, usuarios } = useDataStore();
   const registrarVenda = useDataStore((s) => s.registrarVenda);
   const irPara = useUiStore((s) => s.irPara);
+  const notificar = useToastStore((s) => s.notificar);
 
   // Um produto removido (inativo) não pode ser escolhido em vendas novas —
   // vendas já registradas com ele continuam intactas no histórico.
@@ -39,6 +41,11 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
   const [prazo, setPrazo] = useState(7);
   const [salvando, setSalvando] = useState(false);
   const [sucesso, setSucesso] = useState<Venda | null>(null);
+  // Ref, não state: `setState` só reflete numa nova closure após o próximo
+  // re-render, o que não é rápido o bastante para barrar um duplo clique
+  // síncrono (os dois cliques disparam onSubmit na mesma tarefa, lendo a
+  // mesma closure com `salvando` ainda antigo). O ref muda de valor na hora.
+  const salvandoRef = useRef(false);
 
   const produto = produtos.find((p) => p.id === produtoId);
 
@@ -54,25 +61,32 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!produto || quantidade <= 0) return;
+    if (salvandoRef.current || !produto || quantidade <= 0) return;
+    salvandoRef.current = true;
     setSalvando(true);
-    const venda = await registrarVenda({
-      vendedor_id: vendedorId,
-      comercio_id: comercioId,
-      produto_id: produtoId,
-      quantidade,
-      preco_unitario: preco?.bloqueado ? undefined : precoUnitario,
-      forma_pagamento: forma,
-      prazo_dias: forma === 'a_prazo' ? prazo : undefined,
-    });
-    setSalvando(false);
-    // Em vez de redirecionar, confirma a venda aqui mesmo e limpa o formulário
-    // para o próximo lançamento.
-    setSucesso(venda);
-    setQuantidade(1);
-    setPrecoDigitado('');
-    setForma('a_vista');
-    setPrazo(7);
+    try {
+      const venda = await registrarVenda({
+        vendedor_id: vendedorId,
+        comercio_id: comercioId,
+        produto_id: produtoId,
+        quantidade,
+        preco_unitario: preco?.bloqueado ? undefined : precoUnitario,
+        forma_pagamento: forma,
+        prazo_dias: forma === 'a_prazo' ? prazo : undefined,
+      });
+      // Em vez de redirecionar, confirma a venda aqui mesmo e limpa o formulário
+      // para o próximo lançamento.
+      setSucesso(venda);
+      setQuantidade(1);
+      setPrecoDigitado('');
+      setForma('a_vista');
+      setPrazo(7);
+    } catch {
+      notificar('Não foi possível registrar a venda. Verifique sua conexão e tente novamente.', 'bad');
+    } finally {
+      salvandoRef.current = false;
+      setSalvando(false);
+    }
   };
 
   const faltam = produto ? produto.qtd_min_atacado - quantidade : 0;

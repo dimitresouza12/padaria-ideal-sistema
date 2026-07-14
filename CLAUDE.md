@@ -35,16 +35,14 @@ npm run dev
 
 `npm run build` roda o typecheck (`tsc --noEmit`) antes do build de produção.
 
-## Credenciais de demonstração
+## Autenticação
 
-⚠️ **Login validado no navegador** — só para demonstrar o fluxo de UI, nunca assim em
-produção (ver seção "Segurança" abaixo). **O login é o primeiro nome da pessoa**, não
-e-mail — o e-mail em `Usuario.email` existe só como contato.
-
-| Perfil | Login | Senha |
-|---|---|---|
-| Administrador | `Roberto` | `admin123` |
-| Vendedor | `Ana` | `venda123` |
+Login real via **Supabase Auth** (`signInWithPassword`), migrado em 2026-07-14 — ver
+"Estado atual" abaixo para o histórico. **O login continua sendo o primeiro nome da
+pessoa**, não e-mail: uma RPC pública (`obter_email_por_login`) resolve o e-mail
+correspondente antes de chamar o Auth, preservando a UX original. Não há mais senhas de
+demonstração fixas — cada conta tem sua própria senha (funcionários novos recebem uma
+senha provisória gerada na hora do cadastro, exibida uma única vez para o admin repassar).
 
 ## Regras de negócio implementadas
 
@@ -67,9 +65,9 @@ e-mail — o e-mail em `Usuario.email` existe só como contato.
 - **Equipe e acessos**: aba **Configurações** permite ao gestor cadastrar um funcionário
   diretamente, ou aprovar/recusar pedidos de acesso enviados pela própria tela de login
   ("Solicitar cadastro"). O login de cada pessoa é derivado do primeiro nome, com
-  verificação de duplicidade. O admin também troca a própria senha ("Minha Conta") e a de
-  qualquer funcionário (botão "Senha" na tabela Equipe) — ambas exigem reconfirmar a senha
-  atual do admin, checada com bcrypt no Postgres.
+  verificação de duplicidade. O admin troca a própria senha ("Minha Conta", reautenticando
+  com a senha atual) e redefine a de qualquer funcionário (botão "Senha" na tabela Equipe,
+  sem precisar da senha antiga) — ambas via Supabase Auth de verdade, não mais bcrypt manual.
 - **RBAC**: Administrador tem acesso total (9 abas); Vendedor só vê Dashboard, Vendas e
   Lembretes — e o campo "Vendedor responsável" no formulário de venda fica travado no próprio
   usuário logado.
@@ -105,10 +103,16 @@ muda.
 
 ## Estado e persistência
 
-Todo o estado vive em `localStorage`, versionado (`padaria_ideal_db_v4` atualmente) — a
-versão muda sempre que o formato dos dados muda, para não herdar um shape incompatível. A
-sessão de login é só em memória; um refresh sempre volta para a tela de login. Botão
-"Restaurar dados de exemplo" reseta para o dataset fictício inicial.
+Os dados de negócio vivem no Supabase (ver seção "Estado atual" abaixo); o mock legado em
+`localStorage` (versionado, `padaria_ideal_db_v4`) só é usado se `services/api.ts` apontar para
+`services/mock`. Botão "Restaurar dados de exemplo" reseta para o dataset fictício inicial.
+
+**A sessão é gerenciada pelo Supabase Auth** (JWT persistido pelo SDK, renovado sozinho em
+background) — um refresh continua logado, mas, diferente do esquema anterior, `useAuthStore.ts`
+revalida contra o banco a cada boot e a cada evento de `onAuthStateChange` (não confia cegamente
+no JWT): se um admin desativar um funcionário (`ativo=false`), a próxima checagem já derruba a
+sessão dele, sem precisar de logout manual (corrigido em 2026-07-14 — antes, com a sessão salva
+"na mão" em `localStorage`, a revogação não tinha nenhum efeito prático até o logout).
 
 ## Design system
 
@@ -134,35 +138,44 @@ Paleta "Padaria Premium" — abandona o azul genérico de tecnologia:
 - **Sub-abas** (`SubTabs` em `components/ui.tsx`) quebram telas densas em seções: Configurações
   usa Minha Conta · Equipe · Solicitações (com badge de pendências) em vez de empilhar tudo.
 
-## Segurança — o que MUDA em produção
+## Segurança
 
-Este protótipo faz a validação de login **no navegador**, só para demonstrar o fluxo de
-UI. Isso é inseguro por definição e **não deve ir para produção assim**. O plano em
-`docs/plano-implementacao.md` detalha a arquitetura real:
+Migrado em 2026-07-14 para **Supabase Auth de verdade** (ver "Estado atual" abaixo) — a
+validação de login deixou de ser client-side. Itens que seguem fora de escopo, registrados
+para uma fase futura caso o sistema cresça além de um time interno pequeno:
 
-- Senhas com hash **bcrypt** (cost ≥ 12) ou Argon2id — nunca texto puro nem validação
-  client-side.
-- Autenticação via API com **JWT** (expiração curta) + refresh token em cookie
-  `httpOnly, Secure, SameSite`.
-- **Row Level Security** no PostgreSQL (recomendação: Supabase) como camada final de RBAC,
-  independente da validação da API.
-- Upload de logo/branding via **object storage** (Supabase Storage/S3), nunca commitado no
-  repositório de código.
+- Rate limiting em login/solicitação de acesso (o Supabase Auth já dá alguma proteção nativa
+  contra brute-force; não avaliado se é suficiente).
+- Reset de senha "esqueci minha senha" self-service (hoje o admin sempre gera/redefine a
+  senha manualmente).
+- Upload de logo/branding via **object storage** (Supabase Storage/S3) em vez de commitado no
+  repositório — não crítico, o logo não muda com frequência.
 
-### Estado atual (Supabase real já conectado, sem backend próprio)
+### Estado atual (Supabase Auth + RLS por role + Edge Function)
 
-O app fala direto com o Postgres via `anon key` (pública no bundle) — não existe camada de
-servidor. Bcrypt já está em uso (senhas com hash, verificadas em função `SECURITY DEFINER` no
-Postgres). Ações administrativas sensíveis (`criar_funcionario`, `aprovar_solicitacao`,
-`recusar_solicitacao`) agora exigem reconfirmar login+senha do admin dentro da própria função
-(verificado com bcrypt), já que a `anon key` sozinha não carrega identidade nenhuma. A função de
-demo `reset_dados_exemplo` teve o `EXECUTE` revogado de `public` — não é mais alcançável pela API.
-
-Risco residual, aceito por ora: as tabelas (`produtos`, `vendas`, `comercios`, `metas`, etc.) têm
-policy `USING(true)` para `anon` — sem uma sessão real (Supabase Auth/JWT), não dá para
-restringir por role no banco. Qualquer um com a `anon key` (pública) pode ler/escrever essas
-tabelas direto via REST, contornando a UI. Fechar isso de verdade exige adotar Supabase Auth (ver
-plano acima) — projeto futuro, não feito nesta rodada.
+- **Autenticação**: `usuarios.auth_user_id` liga cada linha a um usuário real em
+  `auth.users`. Login resolve o e-mail a partir do primeiro nome (RPC pública
+  `obter_email_por_login`) e chama `supabase.auth.signInWithPassword`. Sessão gerenciada
+  pelo SDK (JWT + refresh automático), revalidada contra `usuarios.ativo` a cada boot e a
+  cada `onAuthStateChange` — ver `useAuthStore.ts`.
+- **RLS por role em todas as 7 tabelas de dados**: a policy única `prototipo_acesso_total`
+  (`USING(true)` para `anon`) foi substituída por policies reais. Leitura liberada a
+  qualquer `authenticated` ativo; escrita em `produtos`/`comercios`/`metas`/
+  `metas_produtos`/`historico_mensal`/`usuarios` exige `is_admin()` (função
+  `SECURITY DEFINER` que já embute a checagem de `ativo`); em `vendas`, cada vendedor só
+  lê/escreve as próprias (`vendedor_id = usuario_atual_id()`) ou é admin. A `anon key`
+  sozinha não lê nem escreve mais nada nessas tabelas via REST.
+- **Edge Function `admin-acoes`** (`supabase/functions/admin-acoes/`): única peça de
+  servidor do projeto. Substitui as RPCs `criar_funcionario`/`aprovar_solicitacao`/
+  `recusar_solicitacao`/`alterar_senha`, que reconfirmavam login+senha do admin a cada
+  chamada (necessário antes, porque a `anon key` não carregava identidade). Agora valida o
+  JWT do chamador e checa `is_admin()` antes de usar a `service_role` key (Admin API do
+  Supabase Auth, que só roda no servidor) para criar/alterar usuários de verdade.
+- `credenciais`/`senha_hash` e as RPCs `fazer_login`/`alterar_senha` antigas ficam como
+  artefato legado no banco (não expostas por nenhum código novo) — não removidas nesta
+  rodada, sem risco adicional (já eram protegidas por GRANT de coluna / SECURITY DEFINER).
+- Migração de dados: script one-off `scripts/migrar-para-supabase-auth.mjs`, rodado
+  localmente pelo usuário com a `service_role` key (nunca passa pelo assistente).
 
 ## Stack recomendada para produção
 

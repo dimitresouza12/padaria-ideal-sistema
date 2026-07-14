@@ -47,17 +47,20 @@ interface DataState {
   definirDimensaoMeta: (id: string, dimensao: TipoMeta) => Promise<void>;
   carregarMetasProdutos: (metaId: string) => Promise<void>;
   atualizarMetaProduto: (metaId: string, produtoId: string, valor: number) => Promise<void>;
+  atualizarMetaIndividualVendedor: (metaId: string, vendedorId: string, valor: number) => Promise<void>;
 
   criarProduto: (input: Omit<Produto, 'id' | 'ativo'>) => Promise<void>;
   editarProduto: (id: string, input: Omit<Produto, 'id' | 'ativo'>) => Promise<void>;
   removerProduto: (id: string) => Promise<void>;
   criarComercio: (input: Omit<Comercio, 'id' | 'ativo'>) => Promise<void>;
+  atualizarComercio: (id: string, input: Omit<Comercio, 'id' | 'ativo'>) => Promise<void>;
 
   criarFuncionario: (input: { nome: string; email: string; senha: string; taxa_comissao: number; meta_individual: number; adminLogin: string; adminSenha: string }) => Promise<void>;
   atualizarFuncionario: (id: string, input: { taxa_comissao: number; meta_individual: number }) => Promise<void>;
-  alterarSenha: (loginAlvo: string, senhaNova: string, adminLogin: string, adminSenha: string) => Promise<void>;
+  alterarMinhaSenha: (senhaAtual: string, senhaNova: string, loginAtual: string) => Promise<void>;
+  alterarSenhaFuncionario: (usuarioId: string, senhaNova: string) => Promise<void>;
   carregarSolicitacoes: () => Promise<void>;
-  aprovarSolicitacao: (id: string, extras: { taxa_comissao: number; meta_individual: number }, adminLogin: string, adminSenha: string) => Promise<void>;
+  aprovarSolicitacao: (id: string, extras: { taxa_comissao: number; meta_individual: number }, adminLogin: string, adminSenha: string) => Promise<string | undefined>;
   recusarSolicitacao: (id: string, adminLogin: string, adminSenha: string) => Promise<void>;
 
   restaurarExemplo: () => Promise<void>;
@@ -137,8 +140,10 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   definirDimensaoMeta: async (id, dimensao) => {
+    // Otimista: a troca de modo (Valor Geral / Soma por Produto) precisa parecer
+    // instantânea, como um tab switch — não vale esperar a viagem ao Supabase.
+    set((s) => ({ metas: s.metas.map((m) => (m.id === id ? { ...m, dimensao } : m)) }));
     await api.definirDimensaoMeta(id, dimensao);
-    set({ metas: await api.listarMetas() });
   },
 
   carregarMetasProdutos: async (metaId) => {
@@ -150,6 +155,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     await api.atualizarMetaProduto(metaId, produtoId, valor);
     const [lista, metas] = await Promise.all([api.listarMetasProdutos(metaId), api.listarMetas()]);
     set((s) => ({ metasProdutosPorMeta: { ...s.metasProdutosPorMeta, [metaId]: lista }, metas }));
+  },
+
+  atualizarMetaIndividualVendedor: async (metaId, vendedorId, valor) => {
+    await api.atualizarMetaIndividualVendedor(metaId, vendedorId, valor);
+    const [usuarios, metas] = await Promise.all([api.listarUsuarios(), api.listarMetas()]);
+    set({ usuarios, metas });
   },
 
   criarProduto: async (input) => {
@@ -172,6 +183,11 @@ export const useDataStore = create<DataState>((set, get) => ({
     set({ comercios: await api.listarComercios() });
   },
 
+  atualizarComercio: async (id, input) => {
+    await api.atualizarComercio(id, input);
+    set({ comercios: await api.listarComercios() });
+  },
+
   criarFuncionario: async (input) => {
     await api.criarFuncionario(input);
     set({ usuarios: await api.listarUsuarios() });
@@ -182,8 +198,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     set({ usuarios: await api.listarUsuarios() });
   },
 
-  alterarSenha: async (loginAlvo, senhaNova, adminLogin, adminSenha) => {
-    await api.alterarSenha(loginAlvo, senhaNova, adminLogin, adminSenha);
+  alterarMinhaSenha: async (senhaAtual, senhaNova, loginAtual) => {
+    await api.alterarMinhaSenha(senhaAtual, senhaNova, loginAtual);
+  },
+
+  alterarSenhaFuncionario: async (usuarioId, senhaNova) => {
+    await api.alterarSenhaFuncionario(usuarioId, senhaNova);
   },
 
   carregarSolicitacoes: async () => {
@@ -191,9 +211,10 @@ export const useDataStore = create<DataState>((set, get) => ({
   },
 
   aprovarSolicitacao: async (id, extras, adminLogin, adminSenha) => {
-    await api.aprovarSolicitacao(id, extras, adminLogin, adminSenha);
+    const { senhaTemporaria } = await api.aprovarSolicitacao(id, extras, adminLogin, adminSenha);
     const [usuarios, solicitacoes] = await Promise.all([api.listarUsuarios(), api.listarSolicitacoes()]);
     set({ usuarios, solicitacoes });
+    return senhaTemporaria;
   },
 
   recusarSolicitacao: async (id, adminLogin, adminSenha) => {

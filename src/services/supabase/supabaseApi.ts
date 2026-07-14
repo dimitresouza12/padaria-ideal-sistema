@@ -74,18 +74,70 @@ async function normalizarVencidos(): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Soma de `meta_individual` dos vendedores ativos — usada pela dimensão "por_vendedor". */
+async function somaMetaIndividualVendedores(): Promise<number> {
+  const linhas = rows(
+    await supabase.from('usuarios').select('meta_individual').eq('perfil', 'vendedor').eq('ativo', true),
+  );
+  return linhas.reduce((acc, u) => acc + u.meta_individual, 0);
+}
+
+/**
+ * Invoca a Edge Function `admin-acoes` (única peça de servidor do projeto) —
+ * usada para as ações que precisam da Admin API do Supabase Auth
+ * (service_role), que não pode rodar no navegador. O JWT da sessão atual é
+ * anexado automaticamente pelo supabase-js; a função valida no servidor que
+ * quem chama é de fato um admin ativo antes de fazer qualquer coisa.
+ */
+async function chamarAdminAcoes<T>(action: string, payload: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('admin-acoes', {
+    body: { action, ...payload },
+  });
+  if (error) {
+    // FunctionsHttpError traz a resposta original (com a mensagem amigável)
+    // em `context`; cai para a mensagem genérica só se não conseguir lê-la.
+    const context = (error as { context?: Response }).context;
+    if (context) {
+      try {
+        const body = await context.clone().json();
+        if (body?.error) throw new Error(body.error);
+      } catch {
+        /* segue para o erro genérico abaixo */
+      }
+    }
+    throw new Error(error.message);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data as T;
+}
+
 /* ------------------------------------------------------------------ *
  * API
  * ------------------------------------------------------------------ */
 export const supabaseApi = {
-  /* auth — login = primeiro nome da pessoa. A verificação da senha (bcrypt)
-   * acontece no Postgres, via função SECURITY DEFINER: a tabela `credenciais`
-   * e o hash nunca são expostos à API. Retorna 0 ou 1 linha. */
+  /* auth — login = primeiro nome da pessoa. Um RPC público resolve o e-mail
+   * correspondente (o Supabase Auth exige e-mail), depois a sessão real é
+   * aberta via signInWithPassword — o JWT resultante é o que autoriza tudo
+   * daqui pra frente (RLS por role, Edge Function). */
   async login(login: string, senha: string): Promise<Sessao> {
-    const { data, error } = await supabase.rpc('fazer_login', { p_login: login, p_senha: senha });
-    if (error) throw new Error(error.message);
-    const usuario = data?.[0];
-    if (!usuario) throw new Error('Credenciais inválidas');
+    const { data: email, error: lookupError } = await supabase.rpc('obter_email_por_login', {
+      p_login: login,
+    });
+    if (lookupError || !email) throw new Error('Credenciais inválidas');
+
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password: senha,
+    });
+    if (authError || !authData.user) throw new Error('Credenciais inválidas');
+
+    const usuario = maybe(
+      await supabase.from('usuarios').select('*').eq('auth_user_id', authData.user.id).maybeSingle(),
+    );
+    if (!usuario || !usuario.ativo) {
+      await supabase.auth.signOut();
+      throw new Error('Credenciais inválidas');
+    }
     return { usuario };
   },
 
@@ -102,6 +154,10 @@ export const supabaseApi = {
         .order('criado_em', { ascending: true }),
     );
   },
+  /** `adminLogin`/`adminSenha` não são mais verificados aqui — a identidade de
+   * quem chama já vem do JWT da sessão, checado dentro da Edge Function
+   * (`admin-acoes`), que usa a service_role key para criar o usuário real no
+   * Supabase Auth (Admin API, só roda no servidor). */
   async criarFuncionario(input: {
     nome: string;
     email: string;
@@ -111,37 +167,31 @@ export const supabaseApi = {
     adminLogin: string;
     adminSenha: string;
   }): Promise<Usuario> {
-    // Cria usuário + credencial (senha em hash) numa transação no servidor;
-    // a checagem de login duplicado, o hash e a confirmação de que quem chamou
-    // é de fato um admin (login+senha revalidados via bcrypt) ficam na função
-    // do Postgres — necessário porque a chave anon é pública no bundle e não
-    // carrega identidade de sessão nenhuma.
-    const { data, error } = await supabase.rpc('criar_funcionario', {
-      p_nome: input.nome,
-      p_email: input.email,
-      p_senha: input.senha,
-      p_taxa: input.taxa_comissao,
-      p_meta: input.meta_individual,
-      p_admin_login: input.adminLogin,
-      p_admin_senha: input.adminSenha,
+    const { usuario } = await chamarAdminAcoes<{ usuario: Usuario }>('criar_funcionario', {
+      nome: input.nome,
+      email: input.email,
+      senha: input.senha,
+      taxa_comissao: input.taxa_comissao,
+      meta_individual: input.meta_individual,
     });
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error('Não foi possível cadastrar o funcionário.');
-    return data;
+    return usuario;
   },
-  async alterarSenha(
-    loginAlvo: string,
-    senhaNova: string,
-    adminLogin: string,
-    adminSenha: string,
-  ): Promise<void> {
-    const { error } = await supabase.rpc('alterar_senha', {
-      p_login_alvo: loginAlvo,
-      p_senha_nova: senhaNova,
-      p_admin_login: adminLogin,
-      p_admin_senha: adminSenha,
+  /** Troca da própria senha: reautentica com a senha atual antes de trocar
+   * (equivalente a exigir a senha atual, mas via Supabase Auth de verdade). */
+  async alterarMinhaSenha(senhaAtual: string, senhaNova: string, loginAtual: string): Promise<void> {
+    const { data: email, error: lookupError } = await supabase.rpc('obter_email_por_login', {
+      p_login: loginAtual,
     });
+    if (lookupError || !email) throw new Error('Não foi possível confirmar sua identidade.');
+    const { error: reauthError } = await supabase.auth.signInWithPassword({ email, password: senhaAtual });
+    if (reauthError) throw new Error('Senha atual incorreta.');
+    const { error } = await supabase.auth.updateUser({ password: senhaNova });
     if (error) throw new Error(error.message);
+  },
+  /** Admin redefine a senha de um funcionário — via Edge Function (Admin API,
+   * service_role), já que só ela pode alterar a senha de outra pessoa. */
+  async alterarSenhaFuncionario(usuarioId: string, senhaNova: string): Promise<void> {
+    await chamarAdminAcoes('alterar_senha_funcionario', { usuarioId, senhaNova });
   },
   async atualizarFuncionario(
     id: string,
@@ -185,28 +235,20 @@ export const supabaseApi = {
   async aprovarSolicitacao(
     id: string,
     extras: { taxa_comissao: number; meta_individual: number },
-    adminLogin: string,
-    adminSenha: string,
-  ): Promise<Usuario> {
-    // A função cria usuário + credencial reaproveitando o hash já guardado.
-    const { data, error } = await supabase.rpc('aprovar_solicitacao', {
-      p_id: id,
-      p_taxa: extras.taxa_comissao,
-      p_meta: extras.meta_individual,
-      p_admin_login: adminLogin,
-      p_admin_senha: adminSenha,
+    _adminLogin: string,
+    _adminSenha: string,
+  ): Promise<{ usuario: Usuario; senhaTemporaria?: string }> {
+    // A senha que a pessoa escolheu ao pedir acesso virou hash bcrypt
+    // (irrecuperável) — a Edge Function gera uma senha provisória nova para
+    // a conta real do Supabase Auth e devolve aqui para o admin repassar.
+    return chamarAdminAcoes('aprovar_solicitacao', {
+      id,
+      taxa_comissao: extras.taxa_comissao,
+      meta_individual: extras.meta_individual,
     });
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error('Solicitação não encontrada');
-    return data;
   },
-  async recusarSolicitacao(id: string, adminLogin: string, adminSenha: string): Promise<void> {
-    const { error } = await supabase.rpc('recusar_solicitacao', {
-      p_id: id,
-      p_admin_login: adminLogin,
-      p_admin_senha: adminSenha,
-    });
-    if (error) throw new Error(error.message);
+  async recusarSolicitacao(id: string, _adminLogin: string, _adminSenha: string): Promise<void> {
+    await chamarAdminAcoes('recusar_solicitacao', { id });
   },
 
   /* produtos */
@@ -253,6 +295,13 @@ export const supabaseApi = {
         .select('*')
         .single(),
     );
+  },
+  async atualizarComercio(id: string, input: Omit<Comercio, 'id' | 'ativo'>): Promise<Comercio> {
+    const comercio = maybe(
+      await supabase.from('comercios').update(input).eq('id', id).select('*').maybeSingle(),
+    );
+    if (!comercio) throw new Error('Comércio não encontrado');
+    return comercio;
   },
 
   /* vendas */
@@ -444,11 +493,19 @@ export const supabaseApi = {
   async removerMeta(id: string): Promise<void> {
     const meta = maybe(await supabase.from('metas').select('principal').eq('id', id).maybeSingle());
     if (!meta) throw new Error('Meta não encontrada');
-    if (meta.principal) {
-      throw new Error('A meta principal não pode ser removida — torne outra principal primeiro.');
-    }
     const { error } = await supabase.from('metas').delete().eq('id', id);
     if (error) throw new Error(error.message);
+    // Se a removida era a principal, promove outra restante (a mais recente) —
+    // senão o Dashboard fica sem KPI de destaque sem nenhum aviso.
+    if (meta.principal) {
+      const outra = maybe(
+        await supabase.from('metas').select('id').order('data_inicio', { ascending: false }).limit(1).maybeSingle(),
+      );
+      if (outra) {
+        const { error: promErr } = await supabase.from('metas').update({ principal: true }).eq('id', outra.id);
+        if (promErr) throw new Error(promErr.message);
+      }
+    }
   },
   async definirMetaPrincipal(id: string): Promise<Meta[]> {
     let res = await supabase.from('metas').update({ principal: false }).neq('id', id);
@@ -464,6 +521,8 @@ export const supabaseApi = {
         await supabase.from('metas_produtos').select('valor_alvo').eq('meta_id', id),
       );
       patch.valor_alvo = linhas.reduce((acc, m) => acc + m.valor_alvo, 0);
+    } else if (dimensao === 'por_vendedor') {
+      patch.valor_alvo = await somaMetaIndividualVendedores();
     }
     const meta = maybe(
       await supabase.from('metas').update(patch).eq('id', id).select('*').maybeSingle(),
@@ -526,6 +585,27 @@ export const supabaseApi = {
     }
     return rows(await supabase.from('metas_produtos').select('*').eq('meta_id', metaId));
   },
+  /**
+   * Meta individual por vendedor — reaproveita `usuarios.meta_individual`
+   * (mesmo campo do progresso no Dashboard do Vendedor) em vez de uma tabela
+   * própria por meta: não é um valor por período, é a cota corrente da
+   * pessoa. Editar aqui atualiza o mesmo número em qualquer outra meta
+   * "por_vendedor".
+   */
+  async atualizarMetaIndividualVendedor(metaId: string, vendedorId: string, valorAlvo: number): Promise<void> {
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ meta_individual: valorAlvo })
+      .eq('id', vendedorId);
+    if (error) throw new Error(error.message);
+
+    const meta = maybe(await supabase.from('metas').select('dimensao').eq('id', metaId).maybeSingle());
+    if (meta?.dimensao === 'por_vendedor') {
+      const soma = await somaMetaIndividualVendedores();
+      const { error: updErr } = await supabase.from('metas').update({ valor_alvo: soma }).eq('id', metaId);
+      if (updErr) throw new Error(updErr.message);
+    }
+  },
   async obterHistorico(): Promise<PontoHistorico[]> {
     const linhas = rows(
       await supabase
@@ -544,3 +624,23 @@ export const supabaseApi = {
 };
 
 export type SupabaseApi = typeof supabaseApi;
+
+/**
+ * Usado pelo useAuthStore para hidratar/revalidar a sessão a partir do
+ * Supabase Auth (no boot e a cada onAuthStateChange) — busca a linha de
+ * `usuarios` do usuário autenticado, revalidando `ativo` a cada chamada. É
+ * isso que fecha, de fato, a lacuna encontrada no QA: revogar acesso
+ * (`ativo=false`) agora vale na próxima checagem, não só no próximo login.
+ */
+export async function buscarUsuarioAutenticado(): Promise<Usuario | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const authUser = sessionData.session?.user;
+  if (!authUser) return null;
+  const { data: usuario, error } = await supabase
+    .from('usuarios')
+    .select('*')
+    .eq('auth_user_id', authUser.id)
+    .maybeSingle();
+  if (error || !usuario || !usuario.ativo) return null;
+  return usuario;
+}

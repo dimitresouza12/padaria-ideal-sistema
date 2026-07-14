@@ -19,9 +19,9 @@ if (!url || !anonKey) {
 
 export const supabase = createClient<Database>(url, anonKey, {
   auth: {
-    // O login do protótipo é próprio (tabela `credenciais`), não usa o Auth do
-    // Supabase — então não persistimos nem renovamos sessão dele.
-    persistSession: false,
-    autoRefreshToken: false,
+    // Sessão real do Supabase Auth: persiste em localStorage (gerenciada pelo
+    // SDK, com JWT de expiração curta) e renova sozinha em background.
+    persistSession: true,
+    autoRefreshToken: true,
   },
 });

@@ -129,9 +129,9 @@ export const IconMeta = (p: IconProps) => (
 
 export const IconComissao = (p: IconProps) => (
   <Base {...p}>
-    <circle cx="12" cy="12" r="9" />
-    <path d="M9.5 15.5a2.5 2.5 0 0 0 2.5 2h1a2 2 0 0 0 0-4h-2a2 2 0 0 1 0-4h1a2.5 2.5 0 0 1 2.5 2" />
-    <path d="M12 6.5v1M12 16.5v1" />
+    <path d="M19 5 5 19" />
+    <circle cx="7.5" cy="7.5" r="2.5" />
+    <circle cx="16.5" cy="16.5" r="2.5" />
   </Base>
 );
 
@@ -147,6 +147,22 @@ export const IconDownload = (p: IconProps) => (
   <Base {...p}>
     <path d="M12 3v12M7 10l5 5 5-5" />
     <path d="M4 21h16" />
+  </Base>
+);
+
+export const IconEditar = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </Base>
+);
+
+export const IconLixeira = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 6h16" />
+    <path d="M9 6V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6" />
+    <path d="M6.5 6 7.3 19.2A2 2 0 0 0 9.3 21h5.4a2 2 0 0 0 2-1.8L17.5 6" />
+    <path d="M10 10.5v6" />
+    <path d="M14 10.5v6" />
   </Base>
 );
 

@@ -61,7 +61,9 @@ export function DashboardAdmin() {
   const subiu = m.deltaPct >= 0;
 
   const serie = [...historico, { rotulo: 'Jul', total: m.faturamento, atual: true }];
-  const maxSerie = Math.max(...serie.map((s) => s.total), valorAlvo) * 1.08;
+  // Piso de 1: com o sistema zerado (sem vendas, sem meta), total e valorAlvo
+  // são ambos 0 — sem o piso, a divisão 0/0 no gráfico abaixo gera NaN.
+  const maxSerie = Math.max(...serie.map((s) => s.total), valorAlvo, 1) * 1.08;
   const maxVend = Math.max(...ranking.map((r) => r.total), 1);
   const maxReg = Math.max(...regioes.map((r) => r[1]), 1);
 

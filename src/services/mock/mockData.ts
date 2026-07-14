@@ -252,6 +252,12 @@ function somaMetasProdutos(estado: DBShape, metaId: string): number {
     .reduce((acc, m) => acc + m.valor_alvo, 0);
 }
 
+function somaMetaIndividualVendedores(estado: DBShape): number {
+  return estado.usuarios
+    .filter((u) => u.perfil === 'vendedor' && u.ativo)
+    .reduce((acc, u) => acc + u.meta_individual, 0);
+}
+
 // Inicializa com um seed síncrono e válido (sem auto-referência) para não cair
 // em temporal dead zone; o boot logo abaixo troca por localStorage se existir.
 let db: DBShape = seed();
@@ -341,15 +347,20 @@ export const mockApi = {
     persist();
     return delay(usuario);
   },
-  /** Admin troca a senha de qualquer login (a própria ou a de um funcionário). */
-  async alterarSenha(
-    loginAlvo: string,
-    senhaNova: string,
-    adminLogin: string,
-    adminSenha: string,
-  ): Promise<void> {
-    exigirAdmin(adminLogin, adminSenha);
-    const login = loginAlvo.trim().toLowerCase();
+  /** Usuário logado troca a própria senha (reautentica com a senha atual). */
+  async alterarMinhaSenha(senhaAtual: string, senhaNova: string, loginAtual: string): Promise<void> {
+    const login = loginAtual.trim().toLowerCase();
+    const cred = db.credenciais[login];
+    if (!cred || cred.senha !== senhaAtual) throw new Error('Senha atual incorreta.');
+    cred.senha = senhaNova;
+    persist();
+    return delay(undefined);
+  },
+  /** Admin redefine a senha de um funcionário (sem precisar saber a senha antiga). */
+  async alterarSenhaFuncionario(usuarioId: string, senhaNova: string): Promise<void> {
+    const usuario = db.usuarios.find((u) => u.id === usuarioId);
+    if (!usuario) throw new Error('Funcionário não encontrado');
+    const login = primeiroNome(usuario.nome).toLowerCase();
     const cred = db.credenciais[login];
     if (!cred) throw new Error('Funcionário não encontrado');
     cred.senha = senhaNova;
@@ -399,7 +410,7 @@ export const mockApi = {
     extras: { taxa_comissao: number; meta_individual: number },
     adminLogin: string,
     adminSenha: string,
-  ): Promise<Usuario> {
+  ): Promise<{ usuario: Usuario; senhaTemporaria?: string }> {
     exigirAdmin(adminLogin, adminSenha);
     const solicitacao = db.solicitacoes.find((s) => s.id === id);
     if (!solicitacao) throw new Error('Solicitação não encontrada');
@@ -414,7 +425,7 @@ export const mockApi = {
     });
     solicitacao.status = 'aprovado';
     persist();
-    return usuario;
+    return { usuario };
   },
   async recusarSolicitacao(id: string, adminLogin: string, adminSenha: string): Promise<void> {
     exigirAdmin(adminLogin, adminSenha);
@@ -465,6 +476,13 @@ export const mockApi = {
     db.comercios.push(comercio);
     persist();
     return delay(comercio);
+  },
+  async atualizarComercio(id: string, input: Omit<Comercio, 'id' | 'ativo'>): Promise<Comercio> {
+    const comercio = db.comercios.find((c) => c.id === id);
+    if (!comercio) throw new Error('Comércio não encontrado');
+    Object.assign(comercio, input);
+    persist();
+    return delay({ ...comercio });
   },
 
   /* vendas */
@@ -622,9 +640,13 @@ export const mockApi = {
   async removerMeta(id: string): Promise<void> {
     const meta = db.metas.find((m) => m.id === id);
     if (!meta) throw new Error('Meta não encontrada');
-    if (meta.principal) throw new Error('A meta principal não pode ser removida — torne outra principal primeiro.');
     db.metas = db.metas.filter((m) => m.id !== id);
     db.metasProdutos = db.metasProdutos.filter((mp) => mp.meta_id !== id);
+    // Se a removida era a principal, promove outra restante (a mais recente).
+    if (meta.principal && db.metas.length > 0) {
+      const maisRecente = [...db.metas].sort((a, b) => b.data_inicio.localeCompare(a.data_inicio))[0];
+      maisRecente.principal = true;
+    }
     persist();
     return delay(undefined);
   },
@@ -643,7 +665,8 @@ export const mockApi = {
     const meta = db.metas.find((m) => m.id === id);
     if (!meta) throw new Error('Meta não encontrada');
     meta.dimensao = dimensao;
-    meta.valor_alvo = dimensao === 'por_produto' ? somaMetasProdutos(db, id) : meta.valor_alvo;
+    if (dimensao === 'por_produto') meta.valor_alvo = somaMetasProdutos(db, id);
+    else if (dimensao === 'por_vendedor') meta.valor_alvo = somaMetaIndividualVendedores(db);
     persist();
     return delay({ ...meta });
   },
@@ -664,6 +687,18 @@ export const mockApi = {
     }
     persist();
     return delay(db.metasProdutos.filter((m) => m.meta_id === metaId));
+  },
+  /** Espelha supabaseApi: reaproveita usuarios.meta_individual, não uma tabela por meta. */
+  async atualizarMetaIndividualVendedor(metaId: string, vendedorId: string, valorAlvo: number): Promise<void> {
+    const usuario = db.usuarios.find((u) => u.id === vendedorId);
+    if (!usuario) throw new Error('Funcionário não encontrado');
+    usuario.meta_individual = valorAlvo;
+    const meta = db.metas.find((m) => m.id === metaId);
+    if (meta?.dimensao === 'por_vendedor') {
+      meta.valor_alvo = somaMetaIndividualVendedores(db);
+    }
+    persist();
+    return delay(undefined);
   },
   async obterHistorico(): Promise<PontoHistorico[]> {
     return delay([...db.historico]);

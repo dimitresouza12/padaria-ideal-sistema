@@ -27,9 +27,7 @@ export function Sidebar() {
         }`}
       >
         <div className="flex items-center gap-3 border-b border-line px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-line-strong bg-accent-wash">
-            <img src="/logo-wheat-icon.png" alt="" className="h-5 w-auto" />
-          </div>
+          <img src="/logo-wheat-icon.png" alt="" className="h-9 w-auto" />
           <div>
             <div className="text-[13.5px] font-bold leading-tight">Padaria Ideal</div>
             <div className="text-[11px] font-medium text-ink-muted">Atacado &amp; Distribuição</div>

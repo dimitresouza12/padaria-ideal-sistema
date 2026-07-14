@@ -81,12 +81,15 @@ export interface AlertaPagamento {
 
 /**
  * Dimensão escolhida pelo gestor para compor uma Meta:
- *   'geral'       -> um valor único, definido diretamente.
- *   'por_produto' -> a soma das metas individuais de `MetaProduto` (ver abaixo).
+ *   'geral'        -> um valor único, definido diretamente.
+ *   'por_produto'  -> a soma das metas individuais de `MetaProduto` (ver abaixo).
+ *   'por_vendedor' -> a soma de `usuarios.meta_individual` dos vendedores ativos
+ *                     (mesmo campo usado no progresso individual do Dashboard do
+ *                     Vendedor — não é um valor à parte por período).
  * `valor_alvo` sempre reflete o número final usado no cálculo de progresso,
  * qualquer que seja a dimensão escolhida.
  */
-export type TipoMeta = 'geral' | 'por_produto';
+export type TipoMeta = 'geral' | 'por_produto' | 'por_vendedor';
 
 /**
  * Periodicidade da meta. O gestor pode ter várias metas simultâneas com
