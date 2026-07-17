@@ -10,7 +10,7 @@ export function LoginScreen() {
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center p-6"
+      className="fixed inset-0 flex items-center justify-center overflow-y-auto p-6"
       style={{
         background:
           'radial-gradient(1100px 520px at 50% -8%, #fffdf8 0%, rgba(255,253,248,0) 60%), radial-gradient(900px 500px at 92% 108%, #f5ecdc 0%, rgba(245,236,220,0) 55%), #faf8f5',
