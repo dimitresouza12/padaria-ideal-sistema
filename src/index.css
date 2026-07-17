@@ -17,10 +17,12 @@
 }
 
 @layer components {
-  /* Campo de formulário padrão (linguagem ERP: seco e legível) */
+  /* Campo de formulário padrão (linguagem ERP: seco e legível).
+     text-base (16px) no mobile: abaixo disso o Safari/iOS dá zoom automático
+     ao focar o campo — some no sm+ (telas maiores, sem esse comportamento). */
   .field {
-    @apply w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-sm text-ink outline-none transition
-      focus:border-accent focus:ring-4 focus:ring-accent-wash disabled:cursor-not-allowed disabled:bg-[#f6f5f2] disabled:text-ink-soft;
+    @apply w-full rounded-lg border border-line-strong bg-white px-3 py-2 text-base text-ink outline-none transition
+      focus:border-accent focus:ring-4 focus:ring-accent-wash disabled:cursor-not-allowed disabled:bg-[#f6f5f2] disabled:text-ink-soft sm:text-sm;
   }
   .field-label {
     @apply mb-1.5 block text-[11.5px] font-bold uppercase tracking-wide text-ink-soft;
