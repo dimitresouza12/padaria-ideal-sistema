@@ -187,7 +187,7 @@ quiser"), só quer parar de sair/entrar do sistema por produto. **Opção A libe
 
 ---
 
-## Ponto 3 — Barra de busca no seletor de cliente
+## Ponto 3 — Barra de busca no seletor de cliente ✅ CORRIGIDO E TESTADO
 
 **Cliente (áudio a5 + vídeo v1):**
 > "Tinha como colocar uma barra de pesquisa na hora de escolher o cliente? São muitos, dá
@@ -207,8 +207,24 @@ O vídeo v1 mostra o `<select>` de cliente aberto com uma lista longa de comérc
 4. Garantir acessibilidade e o fix de zoom no iOS (input com `text-base` no mobile, já resolvido
    no `.field`).
 
-**Arquivos:** novo componente em `src/components/ui.tsx`; uso em
-`src/features/vendas/RegistrarVenda.tsx`.
+**Implementado:** novo componente `<ComboBox>` em `src/components/ui.tsx` — input que abre um
+dropdown com todas as opções ao focar, filtra (case-insensitive) conforme digita, navegação por
+setas ↑/↓ + Enter para escolher, Escape ou clique fora fecha sem alterar a seleção, "Nenhum
+resultado" quando a busca não bate com nada. Aplicado nos seletores de **Cliente** e **Produto**
+tanto em `RegistrarVenda.tsx` (nova venda) quanto no formulário de edição em `Historico.tsx`
+(mesma dor ao corrigir uma venda existente).
+
+**Testado:** harness isolado (sem precisar de login), com 23 clientes simulados, rodando no
+navegador real. Confirmado: abre com a lista completa ao focar; digitar "aurora" filtra para 1
+resultado; seta ↓ move o destaque; Enter seleciona o destacado; clique direto numa opção
+seleciona corretamente; Escape fecha sem mudar seleção; clique fora fecha sem mudar seleção;
+busca sem match mostra "Nenhum resultado". Testado também em viewport mobile (375px) — dropdown
+com scroll, sem estouro horizontal, `font-size` do input confirmado em 16px (sem risco do bug de
+zoom do iOS corrigido anteriormente nesta sessão). Arquivo de teste e alteração temporária em
+`main.tsx` revertidos ao final; `npm run build` limpo.
+
+**Arquivos alterados:** `src/components/ui.tsx` (novo `ComboBox`),
+`src/features/vendas/RegistrarVenda.tsx`, `src/features/historico/Historico.tsx`.
 
 ---
 

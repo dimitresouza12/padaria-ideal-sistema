@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Tag, Button, EmptyState, Modal, ConfirmModal } from '@/components/ui';
+import { Card, Tag, Button, EmptyState, Modal, ConfirmModal, ComboBox } from '@/components/ui';
 import { resolverPreco } from '@/lib/pricing';
 import { fmtBRL, fmtBRLCompact, fmtData } from '@/lib/format';
 import type { FormaPagamento, StatusVenda, Venda } from '@/types';
@@ -339,24 +339,26 @@ function DetalheEEdicaoVenda({
         </div>
         <div>
           <label className="field-label">Cliente (Comércio)</label>
-          <select className="field" value={comercioId} onChange={(e) => setComercioId(e.target.value)}>
-            {opcoesComercio.map((c) => <option key={c.id} value={c.id}>{c.razao_social}</option>)}
-          </select>
+          <ComboBox
+            value={comercioId}
+            onChange={setComercioId}
+            opcoes={opcoesComercio.map((c) => ({ value: c.id, label: c.razao_social }))}
+            placeholder="Buscar cliente…"
+          />
         </div>
       </div>
 
       <div>
         <label className="field-label">Produto</label>
-        <select
-          className="field"
+        <ComboBox
           value={produtoId}
-          onChange={(e) => {
-            setProdutoId(e.target.value);
+          onChange={(id) => {
+            setProdutoId(id);
             setPrecoDigitado('');
           }}
-        >
-          {opcoesProduto.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-        </select>
+          opcoes={opcoesProduto.map((p) => ({ value: p.id, label: p.nome }))}
+          placeholder="Buscar produto…"
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

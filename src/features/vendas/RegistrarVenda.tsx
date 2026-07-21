@@ -3,7 +3,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useDataStore } from '@/store/useDataStore';
 import { useUiStore } from '@/store/useUiStore';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Button, Tag } from '@/components/ui';
+import { Card, Button, Tag, ComboBox } from '@/components/ui';
 import { resolverPreco } from '@/lib/pricing';
 import { fmtBRL, fmtData } from '@/lib/format';
 import type { FormaPagamento, Venda } from '@/types';
@@ -116,28 +116,26 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
             </div>
             <div>
               <label className="field-label">Cliente (Comércio)</label>
-              <select className="field" value={comercioId} onChange={(e) => setComercioId(e.target.value)}>
-                {comercios.map((c) => (
-                  <option key={c.id} value={c.id}>{c.razao_social}</option>
-                ))}
-              </select>
+              <ComboBox
+                value={comercioId}
+                onChange={setComercioId}
+                opcoes={comercios.map((c) => ({ value: c.id, label: c.razao_social }))}
+                placeholder="Buscar cliente…"
+              />
             </div>
           </div>
 
           <div>
             <label className="field-label">Produto</label>
-            <select
-              className="field"
+            <ComboBox
               value={produtoId}
-              onChange={(e) => {
-                setProdutoId(e.target.value);
+              onChange={(id) => {
+                setProdutoId(id);
                 setPrecoDigitado('');
               }}
-            >
-              {produtos.map((p) => (
-                <option key={p.id} value={p.id}>{p.nome}</option>
-              ))}
-            </select>
+              opcoes={produtos.map((p) => ({ value: p.id, label: p.nome }))}
+              placeholder="Buscar produto…"
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
