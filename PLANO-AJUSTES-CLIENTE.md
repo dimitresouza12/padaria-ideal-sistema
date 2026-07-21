@@ -161,7 +161,7 @@ limpos.
 
 ---
 
-## Ponto 2 — Vários produtos na mesma venda (mesmo cliente)
+## Ponto 2 — Vários produtos na mesma venda (mesmo cliente) ✅ CORRIGIDO E TESTADO
 
 **Cliente (áudio a3):**
 > "Só consigo registrar uma venda por cliente — um tipo de produto por vez. Para vender dois
@@ -182,8 +182,38 @@ quiser"), só quer parar de sair/entrar do sistema por produto. **Opção A libe
   somando por linha). Resolve 100% da dor relatada ("não sair e entrar de novo").
 - Itens aparecem como linhas separadas no Histórico (mesma data/cliente) — aceito pelo cliente.
 
-**Arquivos:** `src/features/vendas/RegistrarVenda.tsx`,
-`src/store/useDataStore.ts`, `src/services/supabase/supabaseApi.ts` (gravação em lote).
+**Implementado:** `RegistrarVenda.tsx` ganhou um carrinho de itens. Cada "Produto +
+Quantidade + Preço" preenchido pode ser empilhado com **"+ Adicionar produto"**, que mostra
+uma lista "Produtos adicionados (N)" com nome/qtd/modo/valor e um botão de lixeira por item
+para remover. Ao clicar "Registrar Venda", o app grava **uma linha em `vendas` por item**
+(mesmo vendedor/cliente/forma de pagamento/prazo para todos). O item que ainda está "em
+edição" no picker (não clicado em "Adicionar") entra automaticamente no envio — evita perder
+dado de quem preencheu só um produto e nunca clicou o botão (o caso mais comum: uma venda de
+um produto só continua funcionando exatamente como antes, sem fricção extra).
+
+**Falha parcial tratada sem risco de duplicata:** se alguns itens falharem ao gravar (rede
+instável), o app confirma os que gravaram com sucesso e devolve **só os que falharam** para o
+carrinho — reenviar tudo de novo duplicaria o que já foi salvo. Se falhar tudo, comportamento
+idêntico ao anterior (mensagem de erro, nada se perde).
+
+O painel de confirmação (`ConfirmacaoVenda`) foi adaptado para listar múltiplos itens com
+total consolidado quando há mais de uma venda no lote; com um item só, mantém o layout
+detalhado de antes.
+
+**Testado ao vivo no navegador** (login real como vendedora via backend mock, isolado —
+sem afetar produção): 
+- Adicionar 2 produtos diferentes ao carrinho, remover 1, conferir total ao vivo.
+- Submissão com carrinho + item em edição não clicado — **ambos** gravaram (2 linhas em
+  `vendas`, confirmado na listagem e no painel "2 vendas registradas").
+- Forma de pagamento "A Prazo" (15 dias) com 2 itens — ambos gravados com o mesmo vencimento
+  correto (28/07 + 15d = 12/08/2026), status "Pendente", botão "Ver em Lembretes" exibido
+  corretamente no painel de confirmação multi-item.
+- Total do carrinho atualizando em tempo real a cada adição/remoção.
+- `npm run build` limpo; `api.ts` revertido para `supabaseApi` ao final (mudança só local,
+  nunca chegou a ser commitada).
+
+**Arquivos alterados:** `src/features/vendas/RegistrarVenda.tsx` (reescrito — carrinho,
+submissão em lote, confirmação multi-item). Nenhuma mudança de schema, RLS ou store.
 
 ---
 

@@ -4,15 +4,27 @@ import { useDataStore } from '@/store/useDataStore';
 import { useUiStore } from '@/store/useUiStore';
 import { useToastStore } from '@/store/useToastStore';
 import { Card, Button, Tag, ComboBox } from '@/components/ui';
+import { IconLixeira } from '@/components/icons';
 import { resolverPreco } from '@/lib/pricing';
 import { fmtBRL, fmtData } from '@/lib/format';
-import type { FormaPagamento, Venda } from '@/types';
+import type { FormaPagamento, Produto, Venda } from '@/types';
+
+/** Um item ainda não enviado — produto + quantidade + preço negociado (se houver). */
+interface ItemCarrinho {
+  produto_id: string;
+  quantidade: number;
+  precoDigitado?: number;
+}
 
 /**
  * Formulário de lançamento de venda. Fica dentro de um Modal na aba Vendas
  * (`features/vendas/Vendas.tsx`). `aoIrParaLembretes` é chamado quando o usuário
  * clica em "Ver em Lembretes" na confirmação, para que o pai possa fechar o modal
  * antes de navegar.
+ *
+ * Permite lançar vários produtos para o mesmo cliente numa única operação: cada
+ * "Adicionar produto" empilha o item atual num carrinho; "Registrar Venda" grava
+ * uma linha em `vendas` por item (mesmo vendedor/cliente/forma de pagamento).
  */
 export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () => void }) {
   const usuario = useAuthStore((s) => s.usuario)!;
@@ -34,13 +46,16 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
 
   const [vendedorId, setVendedorId] = useState(usuario.id);
   const [comercioId, setComercioId] = useState(comercios[0]?.id ?? '');
+  const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
+  // Campos do item "em edição" — o próximo a entrar no carrinho (ou o único, no
+  // caso comum de uma venda com um produto só).
   const [produtoId, setProdutoId] = useState(produtos[0]?.id ?? '');
   const [quantidade, setQuantidade] = useState(1);
   const [precoDigitado, setPrecoDigitado] = useState<string>('');
   const [forma, setForma] = useState<FormaPagamento>('a_vista');
   const [prazo, setPrazo] = useState(7);
   const [salvando, setSalvando] = useState(false);
-  const [sucesso, setSucesso] = useState<Venda | null>(null);
+  const [sucesso, setSucesso] = useState<Venda[] | null>(null);
   // Ref, não state: `setState` só reflete numa nova closure após o próximo
   // re-render, o que não é rápido o bastante para barrar um duplo clique
   // síncrono (os dois cliques disparam onSubmit na mesma tarefa, lendo a
@@ -57,36 +72,92 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
   }, [produto, quantidade, precoDigitado]);
 
   const precoUnitario = preco?.preco_unitario ?? 0;
-  const total = precoUnitario * quantidade;
+  const totalItemAtual = precoUnitario * quantidade;
+
+  const valorItem = (item: ItemCarrinho, p: Produto) => {
+    const r = resolverPreco(p, item.quantidade, item.precoDigitado);
+    return r.preco_unitario * item.quantidade;
+  };
+  const totalCarrinho = carrinho.reduce((acc, item) => {
+    const p = produtos.find((x) => x.id === item.produto_id);
+    return p ? acc + valorItem(item, p) : acc;
+  }, 0);
+  const totalGeral = totalCarrinho + totalItemAtual;
+
+  const limparItemAtual = () => {
+    setProdutoId(produtos[0]?.id ?? '');
+    setQuantidade(1);
+    setPrecoDigitado('');
+  };
+
+  const adicionarAoCarrinho = () => {
+    if (!produto || quantidade <= 0) return;
+    setCarrinho((c) => [
+      ...c,
+      { produto_id: produtoId, quantidade, precoDigitado: preco?.bloqueado ? undefined : (precoDigitado === '' ? undefined : Number(precoDigitado)) },
+    ]);
+    limparItemAtual();
+  };
+
+  const removerDoCarrinho = (index: number) => {
+    setCarrinho((c) => c.filter((_, i) => i !== index));
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (salvandoRef.current || !produto || quantidade <= 0) return;
+    if (salvandoRef.current) return;
+    // O item em edição entra na lista automaticamente — evita perder dados de
+    // quem preencheu só um produto e nunca clicou "Adicionar produto".
+    const itens: ItemCarrinho[] = [
+      ...carrinho,
+      ...(produto && quantidade > 0
+        ? [{ produto_id: produtoId, quantidade, precoDigitado: preco?.bloqueado ? undefined : (precoDigitado === '' ? undefined : Number(precoDigitado)) }]
+        : []),
+    ];
+    if (itens.length === 0) return;
+
     salvandoRef.current = true;
     setSalvando(true);
-    try {
-      const venda = await registrarVenda({
-        vendedor_id: vendedorId,
-        comercio_id: comercioId,
-        produto_id: produtoId,
-        quantidade,
-        preco_unitario: preco?.bloqueado ? undefined : precoUnitario,
-        forma_pagamento: forma,
-        prazo_dias: forma === 'a_prazo' ? prazo : undefined,
-      });
-      // Em vez de redirecionar, confirma a venda aqui mesmo e limpa o formulário
-      // para o próximo lançamento.
-      setSucesso(venda);
-      setQuantidade(1);
-      setPrecoDigitado('');
+    const registradas: Venda[] = [];
+    const falhas: ItemCarrinho[] = [];
+    for (const item of itens) {
+      try {
+        const venda = await registrarVenda({
+          vendedor_id: vendedorId,
+          comercio_id: comercioId,
+          produto_id: item.produto_id,
+          quantidade: item.quantidade,
+          preco_unitario: item.precoDigitado,
+          forma_pagamento: forma,
+          prazo_dias: forma === 'a_prazo' ? prazo : undefined,
+        });
+        registradas.push(venda);
+      } catch {
+        falhas.push(item);
+      }
+    }
+
+    if (falhas.length === 0) {
+      // Sucesso total: confirma e limpa tudo para o próximo lançamento.
+      setSucesso(registradas);
+      setCarrinho([]);
+      limparItemAtual();
       setForma('a_vista');
       setPrazo(7);
-    } catch {
+    } else if (registradas.length > 0) {
+      // Sucesso parcial: confirma o que gravou e devolve ao carrinho só o que
+      // falhou — reenviar tudo de novo duplicaria o que já foi salvo.
+      setSucesso(registradas);
+      setCarrinho(falhas);
+      notificar(
+        `${registradas.length} de ${itens.length} item(ns) registrado(s). ${falhas.length} falharam — corrija e tente novamente.`,
+        'bad',
+      );
+    } else {
       notificar('Não foi possível registrar a venda. Verifique sua conexão e tente novamente.', 'bad');
-    } finally {
-      salvandoRef.current = false;
-      setSalvando(false);
     }
+    salvandoRef.current = false;
+    setSalvando(false);
   };
 
   const faltam = produto ? produto.qtd_min_atacado - quantidade : 0;
@@ -95,7 +166,7 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
     <>
       {sucesso && (
         <ConfirmacaoVenda
-          venda={sucesso}
+          vendas={sucesso}
           onFechar={() => setSucesso(null)}
           onVerLembretes={aoIrParaLembretes ?? (() => irPara('lembretes'))}
         />
@@ -124,6 +195,38 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
               />
             </div>
           </div>
+
+          {carrinho.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-lg border border-line bg-plane/40 p-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                Produtos adicionados ({carrinho.length})
+              </div>
+              {carrinho.map((item, i) => {
+                const p = produtos.find((x) => x.id === item.produto_id);
+                if (!p) return null;
+                const r = resolverPreco(p, item.quantidade, item.precoDigitado);
+                return (
+                  <div key={i} className="flex items-center justify-between gap-2 rounded-lg border border-line bg-white px-3 py-2 text-[12.5px]">
+                    <div className="min-w-0">
+                      <span className="font-semibold">{p.nome}</span>
+                      <span className="text-ink-muted"> · {item.quantidade} cx · {r.modo_preco === 'atacado' ? 'Atacado' : 'Varejo'}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="tabular-nums font-semibold">{fmtBRL(r.preco_unitario * item.quantidade)}</span>
+                      <button
+                        type="button"
+                        onClick={() => removerDoCarrinho(i)}
+                        className="text-ink-muted transition hover:text-bad-strong"
+                        aria-label={`Remover ${p.nome}`}
+                      >
+                        <IconLixeira size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div>
             <label className="field-label">Produto</label>
@@ -181,6 +284,12 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
             </div>
           </div>
 
+          <div>
+            <Button type="button" variant="secondary" size="sm" onClick={adicionarAoCarrinho} disabled={!produto || quantidade <= 0}>
+              + Adicionar produto
+            </Button>
+          </div>
+
           <div className="border-t border-line pt-4">
             <label className="field-label">Forma de pagamento</label>
             <div className="inline-flex gap-0.5 rounded-lg bg-plane p-0.5">
@@ -212,7 +321,12 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
 
           <div className="flex items-center justify-between border-t border-line pt-4">
             <div className="text-[12.5px] text-ink-muted">
-              Total do pedido: <span className="font-bold tabular-nums text-ink">{fmtBRL(total)}</span>
+              Total do pedido: <span className="font-bold tabular-nums text-ink">{fmtBRL(totalGeral)}</span>
+              {carrinho.length > 0 && (
+                <span className="ml-1">
+                  ({carrinho.length + (produto && quantidade > 0 ? 1 : 0)} {carrinho.length + (produto && quantidade > 0 ? 1 : 0) === 1 ? 'item' : 'itens'})
+                </span>
+              )}
             </div>
             <Button type="submit" disabled={salvando}>
               {salvando ? 'Registrando…' : 'Registrar Venda'}
@@ -226,26 +340,28 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
 
 /** Painel de confirmação exibido após registrar uma venda (substitui o redirect). */
 function ConfirmacaoVenda({
-  venda,
+  vendas,
   onFechar,
   onVerLembretes,
 }: {
-  venda: Venda;
+  vendas: Venda[];
   onFechar: () => void;
   onVerLembretes: () => void;
 }) {
   const { produtos, comercios, usuarios } = useDataStore();
-  const produto = produtos.find((p) => p.id === venda.produto_id);
-  const comercio = comercios.find((c) => c.id === venda.comercio_id);
-  const vendedor = usuarios.find((u) => u.id === venda.vendedor_id);
-  const aPrazo = venda.forma_pagamento === 'a_prazo';
+  const primeira = vendas[0];
+  const comercio = comercios.find((c) => c.id === primeira.comercio_id);
+  const vendedor = usuarios.find((u) => u.id === primeira.vendedor_id);
+  const aPrazo = primeira.forma_pagamento === 'a_prazo';
+  const valorTotal = vendas.reduce((a, v) => a + v.valor_total, 0);
+  const nomeProduto = (id: string) => produtos.find((p) => p.id === id)?.nome ?? 'Produto';
 
   return (
     <Card className="mb-5 border-l-[3px] border-l-good p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Tag tone="good">Venda registrada</Tag>
-          <span className="text-[13.5px] font-bold">{produto?.nome ?? 'Produto'}</span>
+          <Tag tone="good">{vendas.length === 1 ? 'Venda registrada' : `${vendas.length} vendas registradas`}</Tag>
+          {vendas.length === 1 && <span className="text-[13.5px] font-bold">{nomeProduto(primeira.produto_id)}</span>}
         </div>
         <button
           type="button"
@@ -256,6 +372,20 @@ function ConfirmacaoVenda({
         </button>
       </div>
 
+      {vendas.length > 1 && (
+        <ul className="mt-3 flex flex-col gap-1.5 border-b border-line pb-3 text-[12.5px]">
+          {vendas.map((v) => (
+            <li key={v.id} className="flex items-center justify-between gap-2">
+              <span>
+                <span className="font-semibold">{nomeProduto(v.produto_id)}</span>
+                <span className="text-ink-muted"> · {v.quantidade} cx · {v.modo_preco === 'atacado' ? 'Atacado' : 'Varejo'}</span>
+              </span>
+              <span className="shrink-0 tabular-nums font-semibold">{fmtBRL(v.valor_total)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-[12.5px] sm:grid-cols-3">
         <div>
           <dt className="text-ink-muted">Cliente</dt>
@@ -265,23 +395,29 @@ function ConfirmacaoVenda({
           <dt className="text-ink-muted">Vendedor</dt>
           <dd className="font-semibold">{vendedor?.nome ?? '—'}</dd>
         </div>
-        <div>
-          <dt className="text-ink-muted">Quantidade</dt>
-          <dd className="font-semibold tabular-nums">{venda.quantidade} cx · {venda.modo_preco === 'atacado' ? 'Atacado' : 'Varejo'}</dd>
-        </div>
+        {vendas.length === 1 && (
+          <div>
+            <dt className="text-ink-muted">Quantidade</dt>
+            <dd className="font-semibold tabular-nums">
+              {primeira.quantidade} cx · {primeira.modo_preco === 'atacado' ? 'Atacado' : 'Varejo'}
+            </dd>
+          </div>
+        )}
         <div>
           <dt className="text-ink-muted">Valor total</dt>
-          <dd className="font-bold tabular-nums text-ink">{fmtBRL(venda.valor_total)}</dd>
+          <dd className="font-bold tabular-nums text-ink">{fmtBRL(valorTotal)}</dd>
         </div>
-        <div>
-          <dt className="text-ink-muted">Margem</dt>
-          <dd className="font-semibold tabular-nums">{venda.margem != null ? fmtBRL(venda.margem) : 'Não informada'}</dd>
-        </div>
+        {vendas.length === 1 && (
+          <div>
+            <dt className="text-ink-muted">Margem</dt>
+            <dd className="font-semibold tabular-nums">{primeira.margem != null ? fmtBRL(primeira.margem) : 'Não informada'}</dd>
+          </div>
+        )}
         <div>
           <dt className="text-ink-muted">Pagamento</dt>
           <dd className="font-semibold">
             {aPrazo ? (
-              <>A prazo · vence {fmtData(venda.data_vencimento)} <Tag tone="warn">Pendente</Tag></>
+              <>A prazo · vence {fmtData(primeira.data_vencimento)} <Tag tone="warn">Pendente</Tag></>
             ) : (
               <>À vista <Tag tone="good">Pago</Tag></>
             )}
