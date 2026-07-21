@@ -29,12 +29,9 @@ import type { Database } from './database.types';
 
 type MetaUpdate = Database['public']['Tables']['metas']['Update'];
 
-/**
- * Data de referência do protótipo — idêntica à do mock (mockData.ts).
- * Mantida pinada para que o dataset de exemplo, os períodos de meta e o cálculo
- * de vencidos continuem consistentes. Em produção, troque por `new Date()`.
- */
-const HOJE = '2026-07-28';
+/** Data de hoje (America/Sao_Paulo seria mais preciso, mas o servidor roda em UTC
+ * e a granularidade de dia já é suficiente para vencimento/lembretes). */
+const HOJE = new Date().toISOString().slice(0, 10);
 
 /* ------------------------------------------------------------------ *
  * Helpers — desembrulham o `{ data, error }` do supabase-js, lançando
@@ -63,6 +60,17 @@ const somarDias = (iso: string, dias: number): string => {
 
 const diasEntre = (a: string, b: string): number =>
   Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+
+/**
+ * Arredonda para 2 casas decimais antes de gravar valores monetários.
+ * Sem isso, `preco_unitario * quantidade` em ponto flutuante pode gerar ruído
+ * (ex.: 5.2 * 3 = 15.600000000000001) que o Postgres grava literalmente na
+ * coluna `numeric` (sem escala fixa) — e a CHECK `vendas_valor_consistente`
+ * rejeita o insert porque `preco_unitario * quantidade`, recalculado pelo
+ * Postgres com aritmética decimal exata, não bate byte a byte com o valor
+ * "sujo" enviado pelo JS.
+ */
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /** Reclassifica vendas a prazo pendentes já vencidas (equivale ao normalizarVencidos do mock). */
 async function normalizarVencidos(): Promise<void> {
@@ -322,8 +330,8 @@ export const supabaseApi = {
       input.quantidade,
       input.preco_unitario,
     );
-    const valor_total = preco_unitario * input.quantidade;
-    const custo_total = produto.preco_custo * input.quantidade;
+    const valor_total = round2(preco_unitario * input.quantidade);
+    const custo_total = round2(produto.preco_custo * input.quantidade);
     const data_vencimento =
       input.forma_pagamento === 'a_prazo' ? somarDias(HOJE, input.prazo_dias ?? 7) : null;
 
@@ -339,7 +347,7 @@ export const supabaseApi = {
           modo_preco,
           valor_total,
           custo_total,
-          margem: valor_total - custo_total,
+          margem: round2(valor_total - custo_total),
           forma_pagamento: input.forma_pagamento,
           prazo_dias: input.forma_pagamento === 'a_prazo' ? input.prazo_dias ?? 7 : null,
           data_venda: HOJE,
@@ -371,8 +379,8 @@ export const supabaseApi = {
       input.quantidade,
       input.preco_unitario,
     );
-    const valor_total = preco_unitario * input.quantidade;
-    const custo_total = produto.preco_custo * input.quantidade;
+    const valor_total = round2(preco_unitario * input.quantidade);
+    const custo_total = round2(produto.preco_custo * input.quantidade);
     const data_venda = input.data_venda ?? vendaAtual.data_venda;
     const data_vencimento =
       input.forma_pagamento === 'a_prazo' ? somarDias(data_venda, input.prazo_dias ?? 7) : null;
@@ -398,7 +406,7 @@ export const supabaseApi = {
           modo_preco,
           valor_total,
           custo_total,
-          margem: valor_total - custo_total,
+          margem: round2(valor_total - custo_total),
           forma_pagamento: input.forma_pagamento,
           prazo_dias: input.forma_pagamento === 'a_prazo' ? input.prazo_dias ?? 7 : null,
           data_venda,
