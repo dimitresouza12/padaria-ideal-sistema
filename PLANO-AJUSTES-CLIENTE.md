@@ -66,20 +66,22 @@ conexão" (mascarando a causa real).
 `'2026-07-28'`** (resíduo de teste, 7 dias no futuro) em vez de calcular a data real —
 toda venda gravada em produção estava com a data errada. Trocado para `new Date()`.
 
-**Status:** a migração do banco **já está em produção** e sozinha destrava o bug mesmo com
-o frontend antigo ainda no ar (a constraint ficou permissiva o bastante). O fix de
-arredondamento no app e o fix do `HOJE` estão prontos no código local, aguardando
-commit + deploy para valer também no frontend.
+**Status: ✅ CORRIGIDO, TESTADO E EM PRODUÇÃO** (commit `3111e82`, push feito em 21/07/2026).
+A migração do banco já estava em produção antes mesmo do deploy do código (destravava o bug
+sozinha); o fix de arredondamento + `HOJE` dinâmico foram commitados e pushados.
 
-**Regressão pendente:** registrar 3+ vendas seguidas variando quantidade/produto, como
-vendedor e como admin, sem fechar o modal entre elas — confirmar tudo no Histórico.
+**Regressão executada:** 1.500 combinações preço×quantidade simuladas (43,6% quebravam antes,
+0% depois); 36 vendas reais gravadas em produção cobrindo os 3 produtos × 12 quantidades
+problemáticas (varejo e atacado); fluxos de vencimento, dar baixa e edição cruzando limiar
+testados; proteções antigas (quantidade zero/excessiva, valor forjado, preço negativo)
+confirmadas intactas. Todos os dados de teste removidos por ID exato ao final.
 
 **Arquivos alterados:** `src/services/supabase/supabaseApi.ts`; migração SQL na tabela
 `vendas` (projeto `audtpilnovrzwszeubkz`).
 
 ---
 
-## Ponto 1 — Comissão sobre faturamento (não sobre margem)
+## Ponto 1 — Comissão sobre faturamento (não sobre margem) ✅ CORRIGIDO E TESTADO
 
 **Cliente (áudio a1):**
 > "A comissão dos vendedores é feita em cima do faturamento, 5% em cima do faturamento, não é
@@ -101,9 +103,17 @@ margem R$26 × 5% = **R$1,30**. O correto seria faturamento R$46 × 5% = **R$2,3
 **Observação:** a coluna "Margem" pode continuar visível na tabela de Comissões como informação,
 mas a coluna "Comissão" passa a derivar do faturamento.
 
+**Testado:** simulação exata do `reduce`/`map` de `Comissoes.tsx` com dados reais do banco —
+Raulino (5%, R$46 faturamento, R$26 margem) passou de R$1,30 (antigo, sobre margem) para
+R$2,30 (novo, sobre faturamento), batendo com o valor manual esperado. Teste de agregação com
+3 vendas sintéticas em 2 vendedores (soma de faturamento/margem/comissão conferida linha a
+linha), removidas ao final. `fmtBRL`/`toLocaleString` confirmado arredondando corretamente o
+ruído de float da soma (é só exibição, não grava no banco). Também atualizado o comentário em
+`types/index.ts` e a regra de negócio no `CLAUDE.md`.
+
 ---
 
-## Ponto 1b — Margem/custo não obrigatório no cadastro de produto
+## Ponto 1b — Margem/custo não obrigatório no cadastro de produto ✅ CORRIGIDO E TESTADO
 
 **Cliente (áudios a1 + a2):**
 > "Não coloca a margem como campo obrigatório ao cadastrar um produto. Nem sempre tenho esse
@@ -122,8 +132,32 @@ mas a coluna "Comissão" passa a derivar do faturamento.
    no Dashboard (em vez de assumir `custo_total = 0` e inflar a margem para 100% do
    faturamento). Isso não afeta a comissão, já que ela passa a ser sobre faturamento (Ponto 1).
 
-**Arquivos:** `src/features/produtos/Produtos.tsx`, e onde a margem é exibida
-(`DashboardAdmin.tsx`, `Comissoes.tsx`).
+**Implementado:** migração no banco (`preco_custo`, `custo_total`, `margem` agora aceitam
+`NULL` — as CHECKs existentes já toleravam nulo, sem precisar tocar nelas); tipos TypeScript e
+`database.types.ts` regenerado via MCP; `supabaseApi.ts`/`mockData.ts` computam
+`custo_total`/`margem` como `null` quando o produto não tem custo; campo "Custo (R$)" virou
+opcional em `Produtos.tsx` (placeholder "Definir depois", sem `required`). Exibição segue uma
+convenção: células de tabela mostram "—" (Produtos, Histórico, Comissões — mesmo padrão já
+usado para outros campos ausentes no app); KPIs agregados (Dashboard, painel de confirmação de
+venda, resumo de Comissões) mostram "Não informada" por extenso. Se **qualquer** venda de um
+agregado tiver custo desconhecido, o agregado inteiro vira "Não informada" em vez de tratar o
+desconhecido como zero (evita inflar a margem/lucro artificialmente). Exportação XLSX
+(`Relatorios.tsx`) deixa a célula em branco quando o valor é `null`.
+
+**Testado:** produto real criado com `preco_custo=NULL` e venda com `custo_total`/`margem`
+`NULL` gravados em produção sem violar nenhuma CHECK; simulação exata da lógica de agregação
+do Dashboard/Comissões com mistura de vendas conhecidas/desconhecidas do mesmo vendedor —
+confirmado que vira "Não informada" corretamente; confirmado que a comissão (Ponto 1) continua
+calculando normalmente mesmo com margem desconhecida, já que não depende mais dela. Produto e
+venda de teste removidos ao final (banco de volta a 1 venda / 3 produtos). Build e typecheck
+limpos.
+
+**Arquivos alterados:** `src/types/index.ts`, `src/services/supabase/database.types.ts`,
+`src/services/supabase/supabaseApi.ts`, `src/services/mock/mockData.ts`,
+`src/features/produtos/Produtos.tsx`, `src/features/dashboard/DashboardAdmin.tsx`,
+`src/features/comissoes/Comissoes.tsx`, `src/features/historico/Historico.tsx`,
+`src/features/vendas/RegistrarVenda.tsx`, `src/features/relatorios/Relatorios.tsx`,
+`src/lib/xlsx.ts`; migração SQL na tabela `produtos`/`vendas`.
 
 ---
 

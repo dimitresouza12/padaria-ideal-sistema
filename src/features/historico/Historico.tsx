@@ -294,8 +294,8 @@ function DetalheEEdicaoVenda({
           />
           <Detalhe rotulo="Preço unitário" valor={fmtBRL(venda.preco_unitario)} />
           <Detalhe rotulo="Valor total" valor={fmtBRL(venda.valor_total)} forte />
-          <Detalhe rotulo="Custo total" valor={fmtBRL(venda.custo_total)} />
-          <Detalhe rotulo="Margem" valor={fmtBRL(venda.margem)} />
+          <Detalhe rotulo="Custo total" valor={venda.custo_total != null ? fmtBRL(venda.custo_total) : '—'} />
+          <Detalhe rotulo="Margem" valor={venda.margem != null ? fmtBRL(venda.margem) : '—'} />
           <Detalhe
             rotulo="Forma de pagamento"
             valor={venda.forma_pagamento === 'a_vista' ? 'À Vista' : `A Prazo (${venda.prazo_dias}d)`}

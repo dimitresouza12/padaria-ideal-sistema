@@ -16,7 +16,7 @@ export async function baixarXLSX(
   nomeArquivo: string,
   nomeAba: string,
   colunas: ColunaXLSX[],
-  linhas: Record<string, string | number>[],
+  linhas: Record<string, string | number | null>[],
 ): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(nomeAba, { views: [{ state: 'frozen', ySplit: 1 }] });

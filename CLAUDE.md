@@ -49,9 +49,9 @@ senha provisória gerada na hora do cadastro, exibida uma única vez para o admi
 - **Precificação dinâmica**: ao registrar uma venda, se a quantidade for **≥ 10 caixas**,
   o preço de atacado é aplicado automaticamente e o campo fica travado (somente leitura).
   Abaixo de 10, o campo permanece aberto para o vendedor negociar o valor (varejo).
-- **Comissão sobre margem**: cada vendedor tem uma taxa de comissão aplicada sobre a
-  **margem** da venda (preço − custo), não sobre o faturamento bruto. Aba **Comissões**
-  mostra o total a pagar por vendedor no período.
+- **Comissão sobre faturamento**: cada vendedor tem uma taxa de comissão (editável
+  individualmente) aplicada sobre o **faturamento** bruto da venda, não sobre a margem. Aba
+  **Comissões** mostra o total a pagar por vendedor no período.
 - **Vendas a prazo**: ao marcar pagamento "A Prazo", a venda recebe status `Pendente` e
   uma data de vencimento; vendas vencidas são reclassificadas automaticamente. A aba
   **Lembretes de Pagamento** lista tudo que está pendente/vencido, com botão "Dar Baixa"

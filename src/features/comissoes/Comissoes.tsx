@@ -12,15 +12,20 @@ export function Comissoes() {
       .map((u) => {
         const vendasDoVendedor = vendas.filter((v) => v.vendedor_id === u.id);
         const faturamento = vendasDoVendedor.reduce((a, v) => a + v.valor_total, 0);
-        const margem = vendasDoVendedor.reduce((a, v) => a + v.margem, 0);
-        const comissao = margem * u.taxa_comissao;
+        // Se qualquer venda tiver custo desconhecido, a margem do vendedor vira
+        // "não informada" — somar tratando o desconhecido como zero inflaria o
+        // número e esconderia a lacuna de dado (mesmo raciocínio do Dashboard).
+        const margemConhecida = vendasDoVendedor.every((v) => v.margem != null);
+        const margem = margemConhecida ? vendasDoVendedor.reduce((a, v) => a + (v.margem ?? 0), 0) : null;
+        const comissao = faturamento * u.taxa_comissao;
         return { id: u.id, nome: u.nome, taxa: u.taxa_comissao, pedidos: vendasDoVendedor.length, faturamento, margem, comissao };
       })
       .sort((a, b) => b.comissao - a.comissao);
   }, [usuarios, vendas]);
 
   const totalComissao = linhas.reduce((a, l) => a + l.comissao, 0);
-  const totalMargem = linhas.reduce((a, l) => a + l.margem, 0);
+  const margemTotalConhecida = linhas.every((l) => l.margem != null);
+  const totalMargem = margemTotalConhecida ? linhas.reduce((a, l) => a + (l.margem ?? 0), 0) : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -28,7 +33,12 @@ export function Comissoes() {
         <SectionLabel>Resumo do período — Julho 2026</SectionLabel>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <StatCard rotulo="Comissão total a pagar" valor={fmtBRLCompact(totalComissao)} faixa="accent" contexto={`${linhas.length} vendedor(es) com vendas no período`} />
-          <StatCard rotulo="Margem bruta gerada" valor={fmtBRLCompact(totalMargem)} faixa="good" contexto="Base de cálculo de todas as comissões" />
+          <StatCard
+            rotulo="Margem bruta gerada"
+            valor={totalMargem != null ? fmtBRLCompact(totalMargem) : 'Não informada'}
+            faixa="good"
+            contexto="Lucro bruto do período (não é mais a base da comissão)"
+          />
         </div>
       </div>
 
@@ -52,7 +62,7 @@ export function Comissoes() {
                   <td className="px-5 py-3 font-semibold">{l.nome}</td>
                   <td className="px-5 py-3 tabular-nums">{l.pedidos}</td>
                   <td className="px-5 py-3 tabular-nums">{fmtBRL(l.faturamento)}</td>
-                  <td className="px-5 py-3 tabular-nums">{fmtBRL(l.margem)}</td>
+                  <td className="px-5 py-3 tabular-nums">{l.margem != null ? fmtBRL(l.margem) : '—'}</td>
                   <td className="px-5 py-3 tabular-nums">{fmtPct(l.taxa * 100)}</td>
                   <td className="px-5 py-3 font-bold tabular-nums text-accent-dark">{fmtBRL(l.comissao)}</td>
                 </tr>
@@ -91,7 +101,7 @@ export function Comissoes() {
               </div>
               <div>
                 <dt className="text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">Margem</dt>
-                <dd className="tabular-nums">{fmtBRL(l.margem)}</dd>
+                <dd className="tabular-nums">{l.margem != null ? fmtBRL(l.margem) : '—'}</dd>
               </div>
             </dl>
           </Card>

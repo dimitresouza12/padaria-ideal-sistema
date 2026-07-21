@@ -41,7 +41,7 @@ export function Produtos() {
     setForm({
       nome: p.nome,
       sku: p.sku,
-      preco_custo: String(p.preco_custo),
+      preco_custo: p.preco_custo != null ? String(p.preco_custo) : '',
       preco_varejo: String(p.preco_varejo),
       preco_atacado: String(p.preco_atacado),
       qtd_min_atacado: String(p.qtd_min_atacado),
@@ -64,7 +64,7 @@ export function Produtos() {
       nome: form.nome.trim(),
       sku: form.sku.trim(),
       categoria: null,
-      preco_custo: Number(form.preco_custo) || 0,
+      preco_custo: form.preco_custo.trim() === '' ? null : Number(form.preco_custo) || 0,
       preco_varejo: Number(form.preco_varejo) || 0,
       preco_atacado: Number(form.preco_atacado) || 0,
       qtd_min_atacado: Number(form.qtd_min_atacado) || 10,
@@ -130,7 +130,7 @@ export function Produtos() {
                     <tr key={p.id} className="border-b border-line text-[13px] last:border-0">
                       <td className="px-5 py-3 font-semibold">{p.nome}</td>
                       <td className="px-5 py-3 tabular-nums text-ink-muted">{p.sku}</td>
-                      <td className="px-5 py-3 tabular-nums">{fmtBRL(p.preco_custo)}</td>
+                      <td className="px-5 py-3 tabular-nums">{p.preco_custo != null ? fmtBRL(p.preco_custo) : '—'}</td>
                       <td className="px-5 py-3 tabular-nums">{fmtBRL(p.preco_varejo)}</td>
                       <td className="px-5 py-3 font-semibold tabular-nums">{fmtBRL(p.preco_atacado)}</td>
                       <td className="px-5 py-3 tabular-nums">{p.qtd_min_atacado} cx</td>
@@ -155,7 +155,7 @@ export function Produtos() {
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12.5px]">
                   <Campo rotulo="SKU" valor={p.sku} />
                   <Campo rotulo="Qtd. mín. atacado" valor={`${p.qtd_min_atacado} cx`} />
-                  <Campo rotulo="Custo" valor={fmtBRL(p.preco_custo)} />
+                  <Campo rotulo="Custo" valor={p.preco_custo != null ? fmtBRL(p.preco_custo) : '—'} />
                   <Campo rotulo="Varejo" valor={fmtBRL(p.preco_varejo)} />
                   <Campo rotulo="Atacado" valor={fmtBRL(p.preco_atacado)} destaque />
                 </dl>
@@ -187,8 +187,16 @@ export function Produtos() {
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="field-label">Custo (R$)</label>
-              <input className="field" type="number" step={0.01} min={0} value={form.preco_custo} onChange={set('preco_custo')} required />
+              <label className="field-label">Custo (R$) <span className="normal-case text-ink-muted">— opcional</span></label>
+              <input
+                className="field"
+                type="number"
+                step={0.01}
+                min={0}
+                value={form.preco_custo}
+                onChange={set('preco_custo')}
+                placeholder="Definir depois"
+              />
             </div>
             <div>
               <label className="field-label">Varejo (R$)</label>

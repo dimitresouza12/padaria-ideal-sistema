@@ -22,7 +22,7 @@ export interface Usuario {
   nome: string;
   email: string;
   perfil: Perfil;
-  taxa_comissao: number; // fração aplicada sobre a MARGEM da venda (ex.: 0.14 = 14%)
+  taxa_comissao: number; // fração aplicada sobre o FATURAMENTO da venda (ex.: 0.14 = 14%)
   meta_individual: number; // meta de faturamento do vendedor no período (R$)
   ativo: boolean;
   criado_em: string; // ISO 8601
@@ -33,7 +33,8 @@ export interface Produto {
   nome: string;
   sku: string;
   categoria: string | null;
-  preco_custo: number;
+  /** null quando o custo ainda não foi informado (ex.: fica só na ficha técnica do escritório). */
+  preco_custo: number | null;
   preco_varejo: number;
   preco_atacado: number;
   qtd_min_atacado: number; // limite que dispara o preço de atacado (padrão 10)
@@ -58,8 +59,9 @@ export interface Venda {
   preco_unitario: number;
   modo_preco: ModoPreco;
   valor_total: number;
-  custo_total: number;
-  margem: number;
+  /** null quando o produto vendido não tem custo cadastrado — margem também fica null. */
+  custo_total: number | null;
+  margem: number | null;
   forma_pagamento: FormaPagamento;
   prazo_dias: number | null;
   data_venda: string; // ISO date (YYYY-MM-DD)

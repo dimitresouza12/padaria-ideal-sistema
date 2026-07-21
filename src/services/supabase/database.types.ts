@@ -164,7 +164,7 @@ export type Database = {
           id: string
           nome: string
           preco_atacado: number
-          preco_custo: number
+          preco_custo: number | null
           preco_varejo: number
           qtd_min_atacado: number
           sku: string
@@ -175,7 +175,7 @@ export type Database = {
           id?: string
           nome: string
           preco_atacado: number
-          preco_custo: number
+          preco_custo?: number | null
           preco_varejo: number
           qtd_min_atacado?: number
           sku: string
@@ -186,7 +186,7 @@ export type Database = {
           id?: string
           nome?: string
           preco_atacado?: number
-          preco_custo?: number
+          preco_custo?: number | null
           preco_varejo?: number
           qtd_min_atacado?: number
           sku?: string
@@ -260,12 +260,12 @@ export type Database = {
         Row: {
           comercio_id: string
           criado_em: string
-          custo_total: number
+          custo_total: number | null
           data_vencimento: string | null
           data_venda: string
           forma_pagamento: Database["public"]["Enums"]["forma_pagamento"]
           id: string
-          margem: number
+          margem: number | null
           modo_preco: Database["public"]["Enums"]["modo_preco"]
           prazo_dias: number | null
           preco_unitario: number
@@ -278,12 +278,12 @@ export type Database = {
         Insert: {
           comercio_id: string
           criado_em?: string
-          custo_total: number
+          custo_total?: number | null
           data_vencimento?: string | null
           data_venda: string
           forma_pagamento: Database["public"]["Enums"]["forma_pagamento"]
           id?: string
-          margem: number
+          margem?: number | null
           modo_preco: Database["public"]["Enums"]["modo_preco"]
           prazo_dias?: number | null
           preco_unitario: number
@@ -296,12 +296,12 @@ export type Database = {
         Update: {
           comercio_id?: string
           criado_em?: string
-          custo_total?: number
+          custo_total?: number | null
           data_vencimento?: string | null
           data_venda?: string
           forma_pagamento?: Database["public"]["Enums"]["forma_pagamento"]
           id?: string
-          margem?: number
+          margem?: number | null
           modo_preco?: Database["public"]["Enums"]["modo_preco"]
           prazo_dias?: number | null
           preco_unitario?: number
@@ -459,7 +459,7 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals["public"]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends

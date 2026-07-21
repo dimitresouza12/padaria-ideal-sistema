@@ -61,14 +61,15 @@ export function Relatorios() {
       vendedores.map((v) => {
         const vendasDoVendedor = vendas.filter((x) => x.vendedor_id === v.id);
         const faturamento = vendasDoVendedor.reduce((a, x) => a + x.valor_total, 0);
-        const margem = vendasDoVendedor.reduce((a, x) => a + x.margem, 0);
+        const margemConhecida = vendasDoVendedor.every((x) => x.margem != null);
+        const margem = margemConhecida ? vendasDoVendedor.reduce((a, x) => a + (x.margem ?? 0), 0) : null;
         return {
           vendedor: v.nome,
           pedidos: vendasDoVendedor.length,
           faturamento,
           margem,
           taxa: v.taxa_comissao * 100,
-          comissao: margem * v.taxa_comissao,
+          comissao: faturamento * v.taxa_comissao,
         };
       }),
     );

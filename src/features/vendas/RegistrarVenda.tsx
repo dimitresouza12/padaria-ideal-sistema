@@ -277,7 +277,7 @@ function ConfirmacaoVenda({
         </div>
         <div>
           <dt className="text-ink-muted">Margem</dt>
-          <dd className="font-semibold tabular-nums">{fmtBRL(venda.margem)}</dd>
+          <dd className="font-semibold tabular-nums">{venda.margem != null ? fmtBRL(venda.margem) : 'Não informada'}</dd>
         </div>
         <div>
           <dt className="text-ink-muted">Pagamento</dt>

@@ -12,9 +12,13 @@ export function DashboardAdmin() {
 
   const m = useMemo(() => {
     const faturamento = vendas.reduce((a, v) => a + v.valor_total, 0);
-    const custo = vendas.reduce((a, v) => a + v.custo_total, 0);
-    const margem = faturamento - custo;
-    const margemPct = faturamento ? (margem / faturamento) * 100 : 0;
+    // Se alguma venda tiver custo desconhecido (produto cadastrado sem custo),
+    // a margem do período vira "não informada" em vez de tratar o desconhecido
+    // como zero — o que inflaria o número e esconderia a lacuna de dado.
+    const custoConhecido = vendas.every((v) => v.custo_total != null);
+    const custo = custoConhecido ? vendas.reduce((a, v) => a + (v.custo_total ?? 0), 0) : null;
+    const margem = custo != null ? faturamento - custo : null;
+    const margemPct = margem != null && faturamento ? (margem / faturamento) * 100 : null;
     const ticket = vendas.length ? faturamento / vendas.length : 0;
     const mesAnterior = historico.at(-1)?.total ?? 0;
     const deltaPct = mesAnterior ? ((faturamento - mesAnterior) / mesAnterior) * 100 : 0;
@@ -113,9 +117,13 @@ export function DashboardAdmin() {
           </Card>
           <StatCard
             rotulo="Margem"
-            valor={fmtPct(m.margemPct)}
+            valor={m.margemPct != null ? fmtPct(m.margemPct) : 'Não informada'}
             faixa="good"
-            contexto={`${fmtBRLCompact(m.margem)} de margem bruta no período`}
+            contexto={
+              m.margem != null
+                ? `${fmtBRLCompact(m.margem)} de margem bruta no período`
+                : 'Cadastre o custo dos produtos para calcular'
+            }
           />
           <StatCard
             rotulo="Ticket Médio"

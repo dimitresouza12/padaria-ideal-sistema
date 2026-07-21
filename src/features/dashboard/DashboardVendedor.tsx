@@ -11,7 +11,7 @@ export function DashboardVendedor() {
   const minhas = useMemo(() => vendas.filter((v) => v.vendedor_id === usuario.id), [vendas, usuario.id]);
 
   const faturamento = minhas.reduce((a, v) => a + v.valor_total, 0);
-  const comissao = minhas.reduce((a, v) => a + v.margem * usuario.taxa_comissao, 0);
+  const comissao = faturamento * usuario.taxa_comissao;
   const pct = usuario.meta_individual ? (faturamento / usuario.meta_individual) * 100 : 0;
   const acima = pct >= 100;
   const pendentes = minhas.filter((v) => v.status === 'pendente' || v.status === 'vencido');
@@ -40,7 +40,7 @@ export function DashboardVendedor() {
           rotulo="Comissão acumulada"
           valor={fmtBRLCompact(comissao)}
           faixa="good"
-          contexto={`${(usuario.taxa_comissao * 100).toLocaleString('pt-BR')}% sobre a margem das vendas`}
+          contexto={`${(usuario.taxa_comissao * 100).toLocaleString('pt-BR')}% sobre o faturamento`}
         />
         <StatCard
           rotulo="Pendente de recebimento"

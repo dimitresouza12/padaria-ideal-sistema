@@ -186,7 +186,7 @@ function buildVenda(spec: VendaSpec): Venda {
   const produto = PRODUTOS_SEED.find((p) => p.id === spec.produto_id)!;
   const { preco_unitario, modo_preco } = resolverPreco(produto, spec.quantidade, spec.preco_varejo);
   const valor_total = preco_unitario * spec.quantidade;
-  const custo_total = produto.preco_custo * spec.quantidade;
+  const custo_total = produto.preco_custo != null ? produto.preco_custo * spec.quantidade : null;
   const data_venda = somarDias(HOJE, -spec.dias_atras);
   const data_vencimento =
     spec.forma_pagamento === 'a_prazo' ? somarDias(data_venda, spec.prazo_dias ?? 7) : null;
@@ -206,7 +206,7 @@ function buildVenda(spec: VendaSpec): Venda {
     modo_preco,
     valor_total,
     custo_total,
-    margem: valor_total - custo_total,
+    margem: custo_total != null ? valor_total - custo_total : null,
     forma_pagamento: spec.forma_pagamento,
     prazo_dias: spec.prazo_dias ?? null,
     data_venda,
@@ -495,7 +495,7 @@ export const mockApi = {
 
     const { preco_unitario, modo_preco } = resolverPreco(produto, input.quantidade, input.preco_unitario);
     const valor_total = preco_unitario * input.quantidade;
-    const custo_total = produto.preco_custo * input.quantidade;
+    const custo_total = produto.preco_custo != null ? produto.preco_custo * input.quantidade : null;
     const data_vencimento =
       input.forma_pagamento === 'a_prazo' ? somarDias(HOJE, input.prazo_dias ?? 7) : null;
 
@@ -509,7 +509,7 @@ export const mockApi = {
       modo_preco,
       valor_total,
       custo_total,
-      margem: valor_total - custo_total,
+      margem: custo_total != null ? valor_total - custo_total : null,
       forma_pagamento: input.forma_pagamento,
       prazo_dias: input.forma_pagamento === 'a_prazo' ? input.prazo_dias ?? 7 : null,
       data_venda: HOJE,
@@ -536,7 +536,7 @@ export const mockApi = {
 
     const { preco_unitario, modo_preco } = resolverPreco(produto, input.quantidade, input.preco_unitario);
     const valor_total = preco_unitario * input.quantidade;
-    const custo_total = produto.preco_custo * input.quantidade;
+    const custo_total = produto.preco_custo != null ? produto.preco_custo * input.quantidade : null;
     const data_venda = input.data_venda ?? venda.data_venda;
     const data_vencimento =
       input.forma_pagamento === 'a_prazo' ? somarDias(data_venda, input.prazo_dias ?? 7) : null;
@@ -559,7 +559,7 @@ export const mockApi = {
       modo_preco,
       valor_total,
       custo_total,
-      margem: valor_total - custo_total,
+      margem: custo_total != null ? valor_total - custo_total : null,
       forma_pagamento: input.forma_pagamento,
       prazo_dias: input.forma_pagamento === 'a_prazo' ? input.prazo_dias ?? 7 : null,
       data_venda,
