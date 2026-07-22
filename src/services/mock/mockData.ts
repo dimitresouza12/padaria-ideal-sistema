@@ -57,11 +57,16 @@ const somarDias = (iso: string, dias: number): string => {
 const diasEntre = (a: string, b: string): number =>
   Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 
-/** Espelha a checagem feita no Postgres (SECURITY DEFINER) para as mesmas ações. */
-const exigirAdmin = (adminLogin: string, adminSenha: string): void => {
-  const cred = db.credenciais[adminLogin.trim().toLowerCase()];
-  const usuario = cred && db.usuarios.find((u) => u.id === cred.usuario_id);
-  if (!cred || cred.senha !== adminSenha || !usuario || usuario.perfil !== 'admin') {
+/**
+ * Espelha a checagem de autorização feita hoje pela Edge Function `admin-acoes`
+ * (JWT + `is_admin()`) — não há mais senha de admin re-digitada na UI desde a
+ * migração para Supabase Auth, então `adminLogin` (o próprio usuário logado)
+ * já é a identidade confiável a validar, sem comparação de senha.
+ */
+const exigirAdmin = (adminLogin: string): void => {
+  const login = adminLogin.trim().toLowerCase();
+  const usuario = db.usuarios.find((u) => primeiroNome(u.nome).toLowerCase() === login);
+  if (!usuario || usuario.perfil !== 'admin' || !usuario.ativo) {
     throw new Error('Não autorizado');
   }
 };
@@ -325,9 +330,8 @@ export const mockApi = {
     taxa_comissao: number;
     meta_individual: number;
     adminLogin: string;
-    adminSenha: string;
   }): Promise<Usuario> {
-    exigirAdmin(input.adminLogin, input.adminSenha);
+    exigirAdmin(input.adminLogin);
     const login = primeiroNome(input.nome).toLowerCase();
     if (db.credenciais[login]) {
       throw new Error(`Já existe um funcionário com o login "${primeiroNome(input.nome)}". Ajuste o nome (ex.: acrescente o sobrenome) para diferenciar.`);
@@ -409,9 +413,8 @@ export const mockApi = {
     id: string,
     extras: { taxa_comissao: number; meta_individual: number },
     adminLogin: string,
-    adminSenha: string,
   ): Promise<{ usuario: Usuario; senhaTemporaria?: string }> {
-    exigirAdmin(adminLogin, adminSenha);
+    exigirAdmin(adminLogin);
     const solicitacao = db.solicitacoes.find((s) => s.id === id);
     if (!solicitacao) throw new Error('Solicitação não encontrada');
     const usuario = await mockApi.criarFuncionario({
@@ -421,14 +424,13 @@ export const mockApi = {
       taxa_comissao: extras.taxa_comissao,
       meta_individual: extras.meta_individual,
       adminLogin,
-      adminSenha,
     });
     solicitacao.status = 'aprovado';
     persist();
     return { usuario };
   },
-  async recusarSolicitacao(id: string, adminLogin: string, adminSenha: string): Promise<void> {
-    exigirAdmin(adminLogin, adminSenha);
+  async recusarSolicitacao(id: string, adminLogin: string): Promise<void> {
+    exigirAdmin(adminLogin);
     const solicitacao = db.solicitacoes.find((s) => s.id === id);
     if (!solicitacao) throw new Error('Solicitação não encontrada');
     solicitacao.status = 'recusado';

@@ -55,13 +55,13 @@ interface DataState {
   criarComercio: (input: Omit<Comercio, 'id' | 'ativo'>) => Promise<void>;
   atualizarComercio: (id: string, input: Omit<Comercio, 'id' | 'ativo'>) => Promise<void>;
 
-  criarFuncionario: (input: { nome: string; email: string; senha: string; taxa_comissao: number; meta_individual: number; adminLogin: string; adminSenha: string }) => Promise<void>;
+  criarFuncionario: (input: { nome: string; email: string; senha: string; taxa_comissao: number; meta_individual: number; adminLogin: string }) => Promise<void>;
   atualizarFuncionario: (id: string, input: { taxa_comissao: number; meta_individual: number }) => Promise<void>;
   alterarMinhaSenha: (senhaAtual: string, senhaNova: string, loginAtual: string) => Promise<void>;
   alterarSenhaFuncionario: (usuarioId: string, senhaNova: string) => Promise<void>;
   carregarSolicitacoes: () => Promise<void>;
-  aprovarSolicitacao: (id: string, extras: { taxa_comissao: number; meta_individual: number }, adminLogin: string, adminSenha: string) => Promise<string | undefined>;
-  recusarSolicitacao: (id: string, adminLogin: string, adminSenha: string) => Promise<void>;
+  aprovarSolicitacao: (id: string, extras: { taxa_comissao: number; meta_individual: number }, adminLogin: string) => Promise<string | undefined>;
+  recusarSolicitacao: (id: string, adminLogin: string) => Promise<void>;
 
   restaurarExemplo: () => Promise<void>;
 }
@@ -210,15 +210,15 @@ export const useDataStore = create<DataState>((set, get) => ({
     set({ solicitacoes: await api.listarSolicitacoes() });
   },
 
-  aprovarSolicitacao: async (id, extras, adminLogin, adminSenha) => {
-    const { senhaTemporaria } = await api.aprovarSolicitacao(id, extras, adminLogin, adminSenha);
+  aprovarSolicitacao: async (id, extras, adminLogin) => {
+    const { senhaTemporaria } = await api.aprovarSolicitacao(id, extras, adminLogin);
     const [usuarios, solicitacoes] = await Promise.all([api.listarUsuarios(), api.listarSolicitacoes()]);
     set({ usuarios, solicitacoes });
     return senhaTemporaria;
   },
 
-  recusarSolicitacao: async (id, adminLogin, adminSenha) => {
-    await api.recusarSolicitacao(id, adminLogin, adminSenha);
+  recusarSolicitacao: async (id, adminLogin) => {
+    await api.recusarSolicitacao(id, adminLogin);
     set({ solicitacoes: await api.listarSolicitacoes() });
   },
 

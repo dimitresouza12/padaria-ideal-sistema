@@ -63,6 +63,10 @@ export function DashboardAdmin() {
 
   const acimaMeta = m.metaPct >= 100;
   const subiu = m.deltaPct >= 0;
+  // Sem meta principal cadastrada, valorAlvo/gap são 0/negativo e não têm
+  // leitura de negócio válida — o card deve avisar a ausência, não fingir
+  // "faltam R$ -X" (achado do QA: sistema zerado de metas).
+  const metaDefinida = metaPrincipal !== null;
 
   const serie = [...historico, { rotulo: 'Jul', total: m.faturamento, atual: true }];
   // Piso de 1: com o sistema zerado (sem vendas, sem meta), total e valorAlvo
@@ -97,19 +101,25 @@ export function DashboardAdmin() {
               </span>
             }
           />
-          <Card className={`border-l-[3px] p-4 ${acimaMeta ? 'border-l-good' : 'border-l-bad-strong'}`}>
+          <Card className={`border-l-[3px] p-4 ${!metaDefinida ? 'border-l-line-strong' : acimaMeta ? 'border-l-good' : 'border-l-bad-strong'}`}>
             <div className="text-xs font-semibold text-ink-soft">
               % vs {metaPrincipal?.nome ?? 'Meta do Período'}
             </div>
-            <div className="mt-1.5 text-[27px] font-extrabold tracking-tight">{fmtPct(m.metaPct)}</div>
+            <div className="mt-1.5 text-[27px] font-extrabold tracking-tight">
+              {metaDefinida ? fmtPct(m.metaPct) : '—'}
+            </div>
             <div className="my-2.5 h-1.5 overflow-hidden rounded-full bg-[#eceae3]">
               <div
-                className={`h-full rounded-full ${acimaMeta ? 'bg-good' : 'bg-bad-strong'}`}
-                style={{ width: `${Math.min(m.metaPct, 100)}%` }}
+                className={`h-full rounded-full ${!metaDefinida ? '' : acimaMeta ? 'bg-good' : 'bg-bad-strong'}`}
+                style={{ width: `${metaDefinida ? Math.min(m.metaPct, 100) : 0}%` }}
               />
             </div>
             <div className="text-xs text-ink-muted">
-              {acimaMeta ? `Meta superada em ${fmtBRLCompact(Math.abs(m.gap))}` : `Faltam ${fmtBRLCompact(m.gap)} para a meta`}
+              {!metaDefinida
+                ? 'Nenhuma meta cadastrada para o período'
+                : acimaMeta
+                  ? `Meta superada em ${fmtBRLCompact(Math.abs(m.gap))}`
+                  : `Faltam ${fmtBRLCompact(m.gap)} para a meta`}
               {metaPrincipal && metaPrincipal.periodicidade !== 'mensal' && (
                 <> · janela de {fmtData(metaPrincipal.data_inicio)} a {fmtData(metaPrincipal.data_fim)}</>
               )}
@@ -244,7 +254,11 @@ export function DashboardAdmin() {
           <Card className="border-t-[3px] border-t-warn p-4">
             <div className="mb-2 text-[12.5px] font-bold text-warn">O que preocupa</div>
             <p className="text-[12.5px] leading-relaxed text-ink-soft">
-              {acimaMeta ? 'A meta já foi atingida, mas ' : `A meta está em ${fmtPct(m.metaPct)} — faltam ${fmtBRLCompact(m.gap)}. `}
+              {!metaDefinida
+                ? 'Nenhuma meta cadastrada para o período — considere criar uma na aba Metas. '
+                : acimaMeta
+                  ? 'A meta já foi atingida, mas '
+                  : `A meta está em ${fmtPct(m.metaPct)} — faltam ${fmtBRLCompact(m.gap)}. `}
               {vencidos.length > 0
                 ? `Há ${fmtBRLCompact(totalVencido)} vencidos em ${vencidos.length} venda(s) a prazo.`
                 : 'Não há recebíveis vencidos no momento.'}

@@ -278,4 +278,65 @@ zoom do iOS corrigido anteriormente nesta sessão). Arquivo de teste e alteraç�
   você quiser"). **Opção A liberada** (N linhas em `vendas`, um botão "Adicionar produto" no
   formulário). Só quer parar de sair/entrar do sistema por produto.
 
+---
+
+## Rodada de QA completa (21/07/2026, pós-implementação dos 5 pontos)
+
+Varredura de regressão em toda a aplicação — banco de dados e UI completa (Admin e Vendedor) —
+depois de todos os 5 pontos implementados. Objetivo: garantir que nada quebrou e pegar qualquer
+efeito colateral que os testes pontuais anteriores não cobriram.
+
+### Banco de dados (via SQL direto em produção, `audtpilnovrzwszeubkz`)
+
+- Inventário de todas as 8 tabelas, todas as CHECK constraints (incluindo as com `round()` do
+  Ponto 4) e todas as RLS policies — todas corretas e sem alterações indevidas.
+- RLS confirmado ainda bloqueando `anon` via REST direto (GET/POST/DELETE testados com a
+  `anon key`) — nenhuma regressão, mesmo não tendo sido tocado nesta sessão.
+- FKs e Edge Function `admin-acoes` (v2) confirmadas intactas.
+- Testes de fronteira: `quantidade=100000` aceita, `>100000` inexistente; meta com
+  `valor_alvo` negativo rejeitada; `qtd_min_atacado=0` rejeitada. Zero dados órfãos, zero
+  resíduo de teste, integridade referencial 100% intacta.
+
+### UI completa — Admin (backend mock isolado, sem afetar produção)
+
+Testado botão a botão: Dashboard, Vendas (registrar multi-item, editar, excluir com
+confirmação), Produtos (criar sem custo, editar, remover), Comércios (criar), Metas (3
+dimensões, criar, tornar principal, remover com auto-promoção, estado vazio), Comissões
+(matemática conferida para 4 vendedores), Relatórios (3 exports XLSX), Configurações (Minha
+Conta, Equipe — criar/editar funcionário, Solicitações — aprovar/recusar), Lembretes (dar
+baixa). Zero erros de console em qualquer tela.
+
+### UI completa — Vendedor
+
+Confirmado RBAC: só 3 abas visíveis (Dashboard, Vendas, Lembretes); "Vendedor responsável"
+travado no próprio usuário (sem outras opções no seletor); Vendas/Lembretes mostrando somente
+os próprios registros; comissão exibida corretamente (14% sobre faturamento). Zero erros de
+console.
+
+### Bugs encontrados e corrigidos nesta rodada
+
+1. **Dashboard com 0 metas cadastradas mostrava "Faltam R$ -85.330 para a meta"** — texto sem
+   sentido (valor negativo tratado como "faltam"). Corrigido: com `metaPrincipal === null`, o
+   card mostra "—" e "Nenhuma meta cadastrada para o período" (mesmo tratamento no insight "O
+   que preocupa"), com borda neutra em vez de vermelho alarmante.
+   (`src/features/dashboard/DashboardAdmin.tsx`)
+2. **3 labels desatualizados** ainda diziam "Comissão sobre a margem (%)" no cadastro/edição de
+   funcionário e na aprovação de solicitação — resíduo do Ponto 1 (a base já tinha virado
+   faturamento, só o texto ficou para trás). Corrigido para "Comissão sobre o faturamento (%)"
+   nos 3 pontos. (`src/features/configuracoes/Configuracoes.tsx`)
+3. **Mock quebrado para criar funcionário / aprovar solicitação / recusar solicitação** — a
+   verificação `exigirAdmin` ainda exigia conferir uma senha de admin que a UI parou de coletar
+   desde a migração para Supabase Auth (o backend real já validava só via JWT). Resultado:
+   qualquer tentativa dessas 3 ações no mock retornava "Não autorizado", mascarando um teste
+   real. Removido `adminSenha` de toda a cadeia (mock, supabaseApi, store, componente) — era
+   parâmetro morto em produção (supabaseApi já o ignorava, prefixado `_adminSenha`); o mock
+   passou a validar só a identidade do chamador (`adminLogin`), igual à realidade pós-migração.
+   (`src/services/mock/mockData.ts`, `src/services/supabase/supabaseApi.ts`,
+   `src/store/useDataStore.ts`, `src/features/configuracoes/Configuracoes.tsx`)
+
+Todos os 3 bugs foram re-testados ao vivo após a correção e confirmados funcionando. `npm run
+build` limpo ao final; `api.ts` revertido para `supabaseApi`; banco de produção verificado
+intacto (3 usuários, 3 produtos, 37 comércios, 1 venda, 0 metas — inalterado desde antes desta
+rodada).
+
 Sem decisões pendentes — plano liberado para execução.

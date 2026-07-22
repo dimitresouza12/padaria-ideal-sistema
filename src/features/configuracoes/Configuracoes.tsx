@@ -152,7 +152,6 @@ function SolicitacoesPendentes() {
         id,
         { taxa_comissao: (Number(extras.taxa_comissao) || 0) / 100, meta_individual: Number(extras.meta_individual) || 0 },
         adminLogin,
-        '',
       );
       setAprovando(null);
       if (senhaTemporaria) {
@@ -174,7 +173,7 @@ function SolicitacoesPendentes() {
     setErro(null);
     setSalvando(true);
     try {
-      await recusarSolicitacao(id, adminLogin, '');
+      await recusarSolicitacao(id, adminLogin);
       setRecusando(null);
       notificar('Solicitação recusada.', 'neutral');
     } catch (err) {
@@ -223,7 +222,7 @@ function SolicitacoesPendentes() {
               {aprovando === s.id && (
                 <div className="mt-4 flex flex-wrap items-end gap-3 rounded-lg bg-plane p-4">
                   <div>
-                    <label className="field-label">Comissão sobre a margem (%)</label>
+                    <label className="field-label">Comissão sobre o faturamento (%)</label>
                     <input type="number" className="field !w-32" min={0} max={100} value={extras.taxa_comissao} onChange={(e) => setExtras((x) => ({ ...x, taxa_comissao: e.target.value }))} />
                   </div>
                   <div>
@@ -384,7 +383,6 @@ function ModalNovoFuncionario({ aberto, onFechar, adminLogin }: { aberto: boolea
         taxa_comissao: (Number(form.taxa_comissao) || 0) / 100,
         meta_individual: Number(form.meta_individual) || 0,
         adminLogin,
-        adminSenha: '',
       });
       notificar('Funcionário cadastrado.');
       fechar();
@@ -420,7 +418,7 @@ function ModalNovoFuncionario({ aberto, onFechar, adminLogin }: { aberto: boolea
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="field-label">Comissão sobre a margem (%)</label>
+            <label className="field-label">Comissão sobre o faturamento (%)</label>
             <input className="field" type="number" min={0} max={100} value={form.taxa_comissao} onChange={set('taxa_comissao')} required />
           </div>
           <div>
@@ -484,7 +482,7 @@ function ModalEditarFuncionario({ alvo, onFechar }: { alvo: Usuario | null; onFe
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="field-label">Comissão sobre a margem (%)</label>
+            <label className="field-label">Comissão sobre o faturamento (%)</label>
             <input className="field" type="number" min={0} max={100} value={taxa} onChange={(e) => setTaxa(e.target.value)} required />
           </div>
           <div>

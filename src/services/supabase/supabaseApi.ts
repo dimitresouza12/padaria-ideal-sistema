@@ -162,10 +162,10 @@ export const supabaseApi = {
         .order('criado_em', { ascending: true }),
     );
   },
-  /** `adminLogin`/`adminSenha` não são mais verificados aqui — a identidade de
-   * quem chama já vem do JWT da sessão, checado dentro da Edge Function
-   * (`admin-acoes`), que usa a service_role key para criar o usuário real no
-   * Supabase Auth (Admin API, só roda no servidor). */
+  /** `adminLogin` não é mais verificado aqui — a identidade de quem chama já
+   * vem do JWT da sessão, checado dentro da Edge Function (`admin-acoes`),
+   * que usa a service_role key para criar o usuário real no Supabase Auth
+   * (Admin API, só roda no servidor). */
   async criarFuncionario(input: {
     nome: string;
     email: string;
@@ -173,7 +173,6 @@ export const supabaseApi = {
     taxa_comissao: number;
     meta_individual: number;
     adminLogin: string;
-    adminSenha: string;
   }): Promise<Usuario> {
     const { usuario } = await chamarAdminAcoes<{ usuario: Usuario }>('criar_funcionario', {
       nome: input.nome,
@@ -244,7 +243,6 @@ export const supabaseApi = {
     id: string,
     extras: { taxa_comissao: number; meta_individual: number },
     _adminLogin: string,
-    _adminSenha: string,
   ): Promise<{ usuario: Usuario; senhaTemporaria?: string }> {
     // A senha que a pessoa escolheu ao pedir acesso virou hash bcrypt
     // (irrecuperável) — a Edge Function gera uma senha provisória nova para
@@ -255,7 +253,7 @@ export const supabaseApi = {
       meta_individual: extras.meta_individual,
     });
   },
-  async recusarSolicitacao(id: string, _adminLogin: string, _adminSenha: string): Promise<void> {
+  async recusarSolicitacao(id: string, _adminLogin: string): Promise<void> {
     await chamarAdminAcoes('recusar_solicitacao', { id });
   },
 
