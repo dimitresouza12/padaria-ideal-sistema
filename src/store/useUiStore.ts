@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import type { Perfil } from '@/types';
+import { mesAtualISO } from '@/lib/periodo';
 
 export type AbaId =
   | 'dashboard'
   | 'vendas'
+  | 'perdas'
   | 'produtos'
   | 'comercios'
   | 'metas'
@@ -23,6 +25,7 @@ export interface AbaDef {
 export const ABAS: AbaDef[] = [
   { id: 'dashboard', titulo: 'Dashboard', subtitulo: 'Visão consolidada da operação', perfis: ['admin', 'vendedor'] },
   { id: 'vendas', titulo: 'Vendas', subtitulo: 'Registrar e consultar vendas', perfis: ['admin', 'vendedor'] },
+  { id: 'perdas', titulo: 'Perdas', subtitulo: 'Trocas de produto vencido por visita', perfis: ['admin', 'vendedor'] },
   { id: 'produtos', titulo: 'Produtos', subtitulo: 'Catálogo e precificação base', perfis: ['admin'] },
   { id: 'comercios', titulo: 'Clientes / Comércios', subtitulo: 'Cadastro de parceiros B2B', perfis: ['admin'] },
   { id: 'metas', titulo: 'Metas', subtitulo: 'Metas do período', perfis: ['admin'] },
@@ -38,15 +41,20 @@ export const abasDoPerfil = (perfil: Perfil): AbaDef[] =>
 interface UiState {
   abaAtiva: AbaId;
   sidebarAberta: boolean; // controle do drawer no mobile
+  /** Mês (`YYYY-MM`) usado para filtrar Dashboard/Comissões — padrão: mês corrente. */
+  periodoMes: string;
   irPara: (aba: AbaId) => void;
   toggleSidebar: () => void;
   fecharSidebar: () => void;
+  setPeriodoMes: (anoMes: string) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
   abaAtiva: 'dashboard',
   sidebarAberta: false,
+  periodoMes: mesAtualISO(),
   irPara: (aba) => set({ abaAtiva: aba, sidebarAberta: false }),
   toggleSidebar: () => set((s) => ({ sidebarAberta: !s.sidebarAberta })),
   fecharSidebar: () => set({ sidebarAberta: false }),
+  setPeriodoMes: (anoMes) => set({ periodoMes: anoMes }),
 }));

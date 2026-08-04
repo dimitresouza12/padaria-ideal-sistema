@@ -1,16 +1,24 @@
 import { useMemo } from 'react';
 import { useDataStore } from '@/store/useDataStore';
+import { useUiStore } from '@/store/useUiStore';
 import { Card, StatCard, SectionLabel } from '@/components/ui';
 import { fmtBRL, fmtBRLCompact, fmtPct } from '@/lib/format';
+import { noPeriodo, rangeDoMes, rotuloMesExtenso } from '@/lib/periodo';
 
 export function Comissoes() {
   const { usuarios, vendas } = useDataStore();
+  const periodoMes = useUiStore((s) => s.periodoMes);
+  const periodo = useMemo(() => rangeDoMes(periodoMes), [periodoMes]);
 
+  // Comissão é paga por período de fechamento (o mês selecionado no Header) —
+  // sem esse filtro, o total a pagar acumula o histórico inteiro desde
+  // sempre, e um pagamento em agosto cobraria julho de novo (bug relatado
+  // pelo cliente: o sistema nunca teve virada de mês).
   const linhas = useMemo(() => {
     return usuarios
       .filter((u) => u.perfil === 'vendedor')
       .map((u) => {
-        const vendasDoVendedor = vendas.filter((v) => v.vendedor_id === u.id);
+        const vendasDoVendedor = vendas.filter((v) => v.vendedor_id === u.id && noPeriodo(v.data_venda, periodo));
         const faturamento = vendasDoVendedor.reduce((a, v) => a + v.valor_total, 0);
         // Se qualquer venda tiver custo desconhecido, a margem do vendedor vira
         // "não informada" — somar tratando o desconhecido como zero inflaria o
@@ -21,7 +29,7 @@ export function Comissoes() {
         return { id: u.id, nome: u.nome, taxa: u.taxa_comissao, pedidos: vendasDoVendedor.length, faturamento, margem, comissao };
       })
       .sort((a, b) => b.comissao - a.comissao);
-  }, [usuarios, vendas]);
+  }, [usuarios, vendas, periodo]);
 
   const totalComissao = linhas.reduce((a, l) => a + l.comissao, 0);
   const margemTotalConhecida = linhas.every((l) => l.margem != null);
@@ -30,7 +38,7 @@ export function Comissoes() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <SectionLabel>Resumo do período — Julho 2026</SectionLabel>
+        <SectionLabel>Resumo do período — {rotuloMesExtenso(periodoMes)}</SectionLabel>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <StatCard rotulo="Comissão total a pagar" valor={fmtBRLCompact(totalComissao)} faixa="accent" contexto={`${linhas.length} vendedor(es) com vendas no período`} />
           <StatCard

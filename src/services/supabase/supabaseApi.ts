@@ -13,9 +13,10 @@ import type {
   Comercio,
   Meta,
   MetaProduto,
+  NovaPerdaInput,
   NovaVendaInput,
+  Perda,
   Periodicidade,
-  PontoHistorico,
   Produto,
   Sessao,
   SolicitacaoAcesso,
@@ -309,6 +310,28 @@ export const supabaseApi = {
     if (!comercio) throw new Error('Comércio não encontrado');
     return comercio;
   },
+  async removerComercio(id: string): Promise<void> {
+    const comercio = maybe(
+      await supabase
+        .from('comercios')
+        .update({ ativo: false })
+        .eq('id', id)
+        .select('id')
+        .maybeSingle(),
+    );
+    if (!comercio) throw new Error('Comércio não encontrado');
+  },
+  async reativarComercio(id: string): Promise<void> {
+    const comercio = maybe(
+      await supabase
+        .from('comercios')
+        .update({ ativo: true })
+        .eq('id', id)
+        .select('id')
+        .maybeSingle(),
+    );
+    if (!comercio) throw new Error('Comércio não encontrado');
+  },
 
   /* vendas */
   async listarVendas(): Promise<Venda[]> {
@@ -455,6 +478,52 @@ export const supabaseApi = {
     }));
     alertas.sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento));
     return alertas;
+  },
+
+  /* perdas — trocas de produto vencido registradas em visita (não é venda) */
+  async listarPerdas(): Promise<Perda[]> {
+    return rows(
+      await supabase.from('perdas').select('*').order('data_perda', { ascending: false }),
+    );
+  },
+  async registrarPerda(input: NovaPerdaInput): Promise<Perda> {
+    const produto = maybe(
+      await supabase.from('produtos').select('*').eq('id', input.produto_id).maybeSingle(),
+    );
+    if (!produto) throw new Error('Produto não encontrado');
+
+    // Congela os preços vigentes do produto na linha — igual a `vendas`, para
+    // que uma mudança futura de preço não reescreva o histórico de perdas.
+    // Preço de venda de referência é o varejo (perda não é negociada como uma
+    // venda real).
+    const custo_unitario = produto.preco_custo;
+    const preco_venda_unitario = produto.preco_varejo;
+    const valor_custo = custo_unitario != null ? round2(custo_unitario * input.quantidade) : null;
+    const valor_faturamento = round2(preco_venda_unitario * input.quantidade);
+
+    return row(
+      await supabase
+        .from('perdas')
+        .insert({
+          comercio_id: input.comercio_id,
+          produto_id: input.produto_id,
+          vendedor_id: input.vendedor_id,
+          quantidade: input.quantidade,
+          custo_unitario,
+          preco_venda_unitario,
+          valor_custo,
+          valor_faturamento,
+          data_perda: input.data_perda,
+          observacao: input.observacao?.trim() || null,
+        })
+        .select('*')
+        .single(),
+    );
+  },
+  async removerPerda(id: string): Promise<void> {
+    const { error, count } = await supabase.from('perdas').delete({ count: 'exact' }).eq('id', id);
+    if (error) throw new Error(error.message);
+    if (!count) throw new Error('Perda não encontrada');
   },
 
   /* metas */
@@ -612,16 +681,6 @@ export const supabaseApi = {
       if (updErr) throw new Error(updErr.message);
     }
   },
-  async obterHistorico(): Promise<PontoHistorico[]> {
-    const linhas = rows(
-      await supabase
-        .from('historico_mensal')
-        .select('rotulo, total')
-        .order('ordem', { ascending: true }),
-    );
-    return linhas.map((l) => ({ rotulo: l.rotulo, total: l.total }));
-  },
-
   /* utilitário de demonstração — reseta o banco para o seed via função no Postgres */
   async restaurarExemplo(): Promise<void> {
     const { error } = await supabase.rpc('reset_dados_exemplo');

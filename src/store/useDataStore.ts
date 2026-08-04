@@ -3,9 +3,10 @@ import type {
   Comercio,
   Meta,
   MetaProduto,
+  NovaPerdaInput,
   NovaVendaInput,
+  Perda,
   Periodicidade,
-  PontoHistorico,
   Produto,
   SolicitacaoAcesso,
   TipoMeta,
@@ -28,10 +29,10 @@ interface DataState {
   produtos: Produto[];
   comercios: Comercio[];
   vendas: Venda[];
+  perdas: Perda[];
   metas: Meta[];
   metasProdutosPorMeta: Record<string, MetaProduto[]>;
   solicitacoes: SolicitacaoAcesso[];
-  historico: PontoHistorico[];
   carregado: boolean;
 
   carregarTudo: () => Promise<void>;
@@ -39,6 +40,9 @@ interface DataState {
   atualizarVenda: (vendaId: string, input: NovaVendaInput & { data_venda?: string }) => Promise<Venda>;
   removerVenda: (vendaId: string) => Promise<void>;
   darBaixa: (vendaId: string) => Promise<void>;
+
+  registrarPerda: (input: NovaPerdaInput) => Promise<Perda>;
+  removerPerda: (id: string) => Promise<void>;
 
   criarMeta: (input: { nome: string; periodicidade: Periodicidade; data_inicio: string; data_fim: string }) => Promise<Meta>;
   atualizarMeta: (id: string, valor: number) => Promise<void>;
@@ -54,6 +58,8 @@ interface DataState {
   removerProduto: (id: string) => Promise<void>;
   criarComercio: (input: Omit<Comercio, 'id' | 'ativo'>) => Promise<void>;
   atualizarComercio: (id: string, input: Omit<Comercio, 'id' | 'ativo'>) => Promise<void>;
+  removerComercio: (id: string) => Promise<void>;
+  reativarComercio: (id: string) => Promise<void>;
 
   criarFuncionario: (input: { nome: string; email: string; senha: string; taxa_comissao: number; meta_individual: number; adminLogin: string }) => Promise<void>;
   atualizarFuncionario: (id: string, input: { taxa_comissao: number; meta_individual: number }) => Promise<void>;
@@ -71,23 +77,23 @@ export const useDataStore = create<DataState>((set, get) => ({
   produtos: [],
   comercios: [],
   vendas: [],
+  perdas: [],
   metas: [],
   metasProdutosPorMeta: {},
   solicitacoes: [],
-  historico: [],
   carregado: false,
 
   carregarTudo: async () => {
-    const [usuarios, produtos, comercios, vendas, metas, solicitacoes, historico] = await Promise.all([
+    const [usuarios, produtos, comercios, vendas, perdas, metas, solicitacoes] = await Promise.all([
       api.listarUsuarios(),
       api.listarProdutos(),
       api.listarComercios(),
       api.listarVendas(),
+      api.listarPerdas(),
       api.listarMetas(),
       api.listarSolicitacoes(),
-      api.obterHistorico(),
     ]);
-    set({ usuarios, produtos, comercios, vendas, metas, solicitacoes, historico, carregado: true });
+    set({ usuarios, produtos, comercios, vendas, perdas, metas, solicitacoes, carregado: true });
     // pré-carrega as metas por produto de todas as metas existentes
     await Promise.all(metas.map((m) => get().carregarMetasProdutos(m.id)));
   },
@@ -112,6 +118,17 @@ export const useDataStore = create<DataState>((set, get) => ({
   darBaixa: async (vendaId) => {
     await api.darBaixaPagamento(vendaId);
     set({ vendas: await api.listarVendas() });
+  },
+
+  registrarPerda: async (input) => {
+    const perda = await api.registrarPerda(input);
+    set({ perdas: await api.listarPerdas() });
+    return perda;
+  },
+
+  removerPerda: async (id) => {
+    await api.removerPerda(id);
+    set({ perdas: await api.listarPerdas() });
   },
 
   criarMeta: async (input) => {
@@ -185,6 +202,16 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   atualizarComercio: async (id, input) => {
     await api.atualizarComercio(id, input);
+    set({ comercios: await api.listarComercios() });
+  },
+
+  removerComercio: async (id) => {
+    await api.removerComercio(id);
+    set({ comercios: await api.listarComercios() });
+  },
+
+  reativarComercio: async (id) => {
+    await api.reativarComercio(id);
     set({ comercios: await api.listarComercios() });
   },
 

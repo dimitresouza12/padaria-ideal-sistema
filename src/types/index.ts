@@ -47,6 +47,8 @@ export interface Comercio {
   cnpj: string;
   telefone: string;
   regiao: string;
+  /** Vendedor "dono" da carteira deste cliente — null quando ainda não atribuído. */
+  vendedor_id: string | null;
   ativo: boolean;
 }
 
@@ -79,6 +81,42 @@ export interface AlertaPagamento {
   data_vencimento: string;
   status: Extract<StatusVenda, 'pendente' | 'vencido'>;
   dias_atraso: number;
+}
+
+/**
+ * Perda/troca registrada numa visita — quando um produto vence no ponto de
+ * venda e é substituído por um novo. Não é uma venda (não gera receita nem
+ * faturamento real), mas usa o mesmo layout de lançamento por pedido do
+ * cliente. `custo_unitario`/`preco_venda_unitario` ficam congelados no
+ * momento do registro (mesmo raciocínio de `Venda.preco_unitario`): se o
+ * preço do produto mudar depois, o histórico de perdas não pode mudar junto.
+ */
+export interface Perda {
+  id: string;
+  comercio_id: string;
+  produto_id: string;
+  vendedor_id: string;
+  quantidade: number;
+  /** null quando o produto não tinha custo cadastrado no momento do registro. */
+  custo_unitario: number | null;
+  preco_venda_unitario: number;
+  /** custo_unitario * quantidade — null se custo_unitario for null. */
+  valor_custo: number | null;
+  /** preco_venda_unitario * quantidade — receita que deixou de ser gerada. */
+  valor_faturamento: number;
+  data_perda: string; // ISO date (YYYY-MM-DD)
+  observacao: string | null;
+  criado_em: string;
+}
+
+/** Payload aceito ao registrar uma perda (o serviço deriva custo/preço/valores). */
+export interface NovaPerdaInput {
+  comercio_id: string;
+  produto_id: string;
+  vendedor_id: string;
+  quantidade: number;
+  data_perda: string;
+  observacao?: string;
 }
 
 /**
@@ -135,12 +173,6 @@ export interface SolicitacaoAcesso {
   senha: string;
   status: StatusSolicitacao;
   criado_em: string;
-}
-
-/** Ponto do gráfico de evolução mensal. */
-export interface PontoHistorico {
-  rotulo: string; // 'Jan', 'Fev', ...
-  total: number;
 }
 
 /** Payload aceito ao registrar uma venda (o serviço deriva preço/margem/status). */

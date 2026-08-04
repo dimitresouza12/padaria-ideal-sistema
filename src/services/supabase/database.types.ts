@@ -25,6 +25,7 @@ export type Database = {
           razao_social: string
           regiao: string
           telefone: string
+          vendedor_id: string | null
         }
         Insert: {
           ativo?: boolean
@@ -33,6 +34,7 @@ export type Database = {
           razao_social: string
           regiao: string
           telefone: string
+          vendedor_id?: string | null
         }
         Update: {
           ativo?: boolean
@@ -41,8 +43,17 @@ export type Database = {
           razao_social?: string
           regiao?: string
           telefone?: string
+          vendedor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "comercios_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       credenciais: {
         Row: {
@@ -153,6 +164,73 @@ export type Database = {
             columns: ["produto_id"]
             isOneToOne: false
             referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      perdas: {
+        Row: {
+          comercio_id: string
+          criado_em: string
+          custo_unitario: number | null
+          data_perda: string
+          id: string
+          observacao: string | null
+          preco_venda_unitario: number
+          produto_id: string
+          quantidade: number
+          valor_custo: number | null
+          valor_faturamento: number
+          vendedor_id: string
+        }
+        Insert: {
+          comercio_id: string
+          criado_em?: string
+          custo_unitario?: number | null
+          data_perda: string
+          id?: string
+          observacao?: string | null
+          preco_venda_unitario: number
+          produto_id: string
+          quantidade: number
+          valor_custo?: number | null
+          valor_faturamento: number
+          vendedor_id: string
+        }
+        Update: {
+          comercio_id?: string
+          criado_em?: string
+          custo_unitario?: number | null
+          data_perda?: string
+          id?: string
+          observacao?: string | null
+          preco_venda_unitario?: number
+          produto_id?: string
+          quantidade?: number
+          valor_custo?: number | null
+          valor_faturamento?: number
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "perdas_comercio_id_fkey"
+            columns: ["comercio_id"]
+            isOneToOne: false
+            referencedRelation: "comercios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "perdas_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "perdas_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
             referencedColumns: ["id"]
           },
         ]
@@ -459,7 +537,7 @@ export type Database = {
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-type DefaultSchema = DatabaseWithoutInternals["public"]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends

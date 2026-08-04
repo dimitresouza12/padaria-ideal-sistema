@@ -156,6 +156,18 @@ export const IconEditar = (p: IconProps) => (
   </Base>
 );
 
+export const IconChevronEsquerda = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M15 18l-6-6 6-6" />
+  </Base>
+);
+
+export const IconChevronDireita = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M9 18l6-6-6-6" />
+  </Base>
+);
+
 export const IconLixeira = (p: IconProps) => (
   <Base {...p}>
     <path d="M4 6h16" />
@@ -166,9 +178,18 @@ export const IconLixeira = (p: IconProps) => (
   </Base>
 );
 
+export const IconPerda = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M3 7l9-4 9 4-9 4-9-4Z" />
+    <path d="M3 7v10l9 4 9-4V7" />
+    <path d="M9 12.5l2.5 2.5L16 10" />
+  </Base>
+);
+
 export const iconePorAba = {
   dashboard: IconDashboard,
   vendas: IconVenda,
+  perdas: IconPerda,
   historico: IconHistorico,
   produtos: IconProduto,
   comercios: IconComercio,

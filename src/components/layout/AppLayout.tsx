@@ -7,6 +7,7 @@ import { Header } from './Header';
 import { DashboardAdmin } from '@/features/dashboard/DashboardAdmin';
 import { DashboardVendedor } from '@/features/dashboard/DashboardVendedor';
 import { Vendas } from '@/features/vendas/Vendas';
+import { Perdas } from '@/features/perdas/Perdas';
 import { Lembretes } from '@/features/vendas/Lembretes';
 import { Produtos } from '@/features/produtos/Produtos';
 import { Comercios } from '@/features/comercios/Comercios';
@@ -62,6 +63,8 @@ function renderAba(aba: AbaId, perfil: 'admin' | 'vendedor') {
       return perfil === 'admin' ? <DashboardAdmin /> : <DashboardVendedor />;
     case 'vendas':
       return <Vendas />;
+    case 'perdas':
+      return <Perdas />;
     case 'produtos':
       return <Produtos />;
     case 'comercios':

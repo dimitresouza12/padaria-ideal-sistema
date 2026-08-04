@@ -1,31 +1,48 @@
 import { useMemo } from 'react';
 import { useDataStore } from '@/store/useDataStore';
+import { useUiStore } from '@/store/useUiStore';
 import { Card, StatCard, SectionLabel, Tag } from '@/components/ui';
 import { IconAlerta } from '@/components/icons';
 import { fmtBRLCompact, fmtData, fmtPct } from '@/lib/format';
+import { mesAnterior as mesAnteriorA, mesAtualISO, noPeriodo, rangeDoMes, rotuloMesAbrev, rotuloMesExtenso } from '@/lib/periodo';
+import type { Venda } from '@/types';
+
+const totalNoPeriodo = (vendas: Venda[], anoMes: string): number =>
+  vendas.filter((v) => noPeriodo(v.data_venda, rangeDoMes(anoMes))).reduce((a, v) => a + v.valor_total, 0);
 
 export function DashboardAdmin() {
-  const { vendas, comercios, usuarios, metas, historico } = useDataStore();
+  const { vendas, comercios, usuarios, metas, perdas } = useDataStore();
+  const periodoMes = useUiStore((s) => s.periodoMes);
+  const periodo = useMemo(() => rangeDoMes(periodoMes), [periodoMes]);
 
   const metaPrincipal = metas.find((m) => m.principal) ?? null;
   const valorAlvo = metaPrincipal?.valor_alvo ?? 0;
 
+  // Tudo abaixo agrega SÓ as vendas do mês selecionado no Header — sem esse
+  // filtro, faturamento/comissão/ranking somam o histórico inteiro desde
+  // sempre, e um mês novo continua "acumulando" em cima do anterior (bug
+  // relatado pelo cliente: virada de mês não existia).
+  const vendasDoPeriodo = useMemo(
+    () => vendas.filter((v) => noPeriodo(v.data_venda, periodo)),
+    [vendas, periodo],
+  );
+
   const m = useMemo(() => {
-    const faturamento = vendas.reduce((a, v) => a + v.valor_total, 0);
+    const faturamento = vendasDoPeriodo.reduce((a, v) => a + v.valor_total, 0);
     // Se alguma venda tiver custo desconhecido (produto cadastrado sem custo),
     // a margem do período vira "não informada" em vez de tratar o desconhecido
     // como zero — o que inflaria o número e esconderia a lacuna de dado.
-    const custoConhecido = vendas.every((v) => v.custo_total != null);
-    const custo = custoConhecido ? vendas.reduce((a, v) => a + (v.custo_total ?? 0), 0) : null;
+    const custoConhecido = vendasDoPeriodo.every((v) => v.custo_total != null);
+    const custo = custoConhecido ? vendasDoPeriodo.reduce((a, v) => a + (v.custo_total ?? 0), 0) : null;
     const margem = custo != null ? faturamento - custo : null;
     const margemPct = margem != null && faturamento ? (margem / faturamento) * 100 : null;
-    const ticket = vendas.length ? faturamento / vendas.length : 0;
-    const mesAnterior = historico.at(-1)?.total ?? 0;
-    const deltaPct = mesAnterior ? ((faturamento - mesAnterior) / mesAnterior) * 100 : 0;
+    const ticket = vendasDoPeriodo.length ? faturamento / vendasDoPeriodo.length : 0;
+    const totalMesAnterior = totalNoPeriodo(vendas, mesAnteriorA(periodoMes));
+    const deltaPct = totalMesAnterior ? ((faturamento - totalMesAnterior) / totalMesAnterior) * 100 : 0;
 
     // "% vs Meta" compara contra o faturamento DENTRO da janela de datas da
     // meta principal (que pode ser semanal, trimestral etc.) — não contra o
-    // faturamento do período inteiro, senão uma meta semanal de R$25 mil
+    // faturamento do mês selecionado, senão uma meta semanal de R$25 mil
     // pareceria "batida em 340%" comparada ao total do mês inteiro.
     const faturamentoNaJanela = metaPrincipal
       ? vendas
@@ -35,29 +52,74 @@ export function DashboardAdmin() {
     const metaPct = valorAlvo ? (faturamentoNaJanela / valorAlvo) * 100 : 0;
     const gap = valorAlvo - faturamentoNaJanela;
 
-    return { faturamento, margem, margemPct, ticket, deltaPct, metaPct, gap, pedidos: vendas.length };
-  }, [vendas, historico, valorAlvo, metaPrincipal]);
+    return { faturamento, margem, margemPct, ticket, deltaPct, metaPct, gap, pedidos: vendasDoPeriodo.length };
+  }, [vendasDoPeriodo, vendas, periodoMes, valorAlvo, metaPrincipal]);
 
   const ranking = useMemo(() => {
     return usuarios
       .filter((u) => u.perfil === 'vendedor')
       .map((u) => {
-        const total = vendas.filter((v) => v.vendedor_id === u.id).reduce((a, v) => a + v.valor_total, 0);
+        const total = vendasDoPeriodo.filter((v) => v.vendedor_id === u.id).reduce((a, v) => a + v.valor_total, 0);
         const pct = u.meta_individual ? (total / u.meta_individual) * 100 : 0;
         return { id: u.id, nome: u.nome, total, pct };
       })
       .sort((a, b) => b.total - a.total);
-  }, [usuarios, vendas]);
+  }, [usuarios, vendasDoPeriodo]);
 
   const regioes = useMemo(() => {
     const mapa: Record<string, number> = {};
-    vendas.forEach((v) => {
+    vendasDoPeriodo.forEach((v) => {
       const reg = comercios.find((c) => c.id === v.comercio_id)?.regiao ?? 'Outros';
       mapa[reg] = (mapa[reg] ?? 0) + v.valor_total;
     });
     return Object.entries(mapa).sort((a, b) => b[1] - a[1]);
-  }, [vendas, comercios]);
+  }, [vendasDoPeriodo, comercios]);
 
+  // Perdas (trocas de produto vencido) do mesmo mês selecionado — item pedido
+  // pelo cliente para enxergar desperdício, não só faturamento.
+  const perdasDoPeriodo = useMemo(
+    () => perdas.filter((p) => noPeriodo(p.data_perda, periodo)),
+    [perdas, periodo],
+  );
+  const perdasInfo = useMemo(() => {
+    const totalPacotes = perdasDoPeriodo.reduce((a, p) => a + p.quantidade, 0);
+    const custoConhecido = perdasDoPeriodo.every((p) => p.valor_custo != null);
+    const totalCusto = custoConhecido ? perdasDoPeriodo.reduce((a, p) => a + (p.valor_custo ?? 0), 0) : null;
+    // Margem líquida desconta só a perda em CUSTO (o desperdício real) da
+    // margem bruta — descontar também o faturamento perdido contaria o mesmo
+    // prejuízo duas vezes.
+    const margemLiquida = m.margem != null && totalCusto != null ? m.margem - totalCusto : null;
+    const comercioTop = (() => {
+      if (totalCusto === null || totalCusto === 0) return null;
+      const mapa: Record<string, number> = {};
+      perdasDoPeriodo.forEach((p) => { mapa[p.comercio_id] = (mapa[p.comercio_id] ?? 0) + (p.valor_custo ?? 0); });
+      const [id, valor] = Object.entries(mapa).sort((a, b) => b[1] - a[1])[0] ?? [];
+      if (!id) return null;
+      const nome = comercios.find((c) => c.id === id)?.razao_social ?? '—';
+      return { nome, pct: (valor / totalCusto) * 100 };
+    })();
+    return { totalPacotes, totalCusto, margemLiquida, comercioTop };
+  }, [perdasDoPeriodo, m.margem, comercios]);
+
+  // Evolução mensal — derivada das vendas reais (6 meses terminando no mês
+  // selecionado), não mais de uma tabela de seed estática desatualizada.
+  const serie = useMemo(() => {
+    const meses: string[] = [];
+    let mes = periodoMes;
+    for (let i = 0; i < 6; i++) {
+      meses.unshift(mes);
+      mes = mesAnteriorA(mes);
+    }
+    return meses.map((mesRef) => ({
+      rotulo: rotuloMesAbrev(mesRef),
+      total: totalNoPeriodo(vendas, mesRef),
+      atual: mesRef === periodoMes,
+    }));
+  }, [vendas, periodoMes]);
+
+  // Recebível vencido é saldo em aberto HOJE — não faz sentido escondê-lo só
+  // porque o gestor está olhando o Dashboard de um mês passado, então usa
+  // `vendas` (todo o histórico), não `vendasDoPeriodo`.
   const vencidos = vendas.filter((v) => v.status === 'vencido');
   const totalVencido = vencidos.reduce((a, v) => a + v.valor_total, 0);
 
@@ -67,8 +129,8 @@ export function DashboardAdmin() {
   // leitura de negócio válida — o card deve avisar a ausência, não fingir
   // "faltam R$ -X" (achado do QA: sistema zerado de metas).
   const metaDefinida = metaPrincipal !== null;
+  const ehMesAtual = periodoMes === mesAtualISO();
 
-  const serie = [...historico, { rotulo: 'Jul', total: m.faturamento, atual: true }];
   // Piso de 1: com o sistema zerado (sem vendas, sem meta), total e valorAlvo
   // são ambos 0 — sem o piso, a divisão 0/0 no gráfico abaixo gera NaN.
   const maxSerie = Math.max(...serie.map((s) => s.total), valorAlvo, 1) * 1.08;
@@ -88,7 +150,7 @@ export function DashboardAdmin() {
 
       {/* KPIs */}
       <div>
-        <SectionLabel>Indicadores do período — Julho 2026</SectionLabel>
+        <SectionLabel>Indicadores do período — {rotuloMesExtenso(periodoMes)}</SectionLabel>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             rotulo="Faturamento"
@@ -144,11 +206,40 @@ export function DashboardAdmin() {
         </div>
       </div>
 
+      {perdasDoPeriodo.length > 0 && (
+        <div>
+          <SectionLabel>Desperdício do período</SectionLabel>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <StatCard
+              rotulo="Perdas (trocas)"
+              valor={String(perdasInfo.totalPacotes)}
+              faixa="bad"
+              contexto={`${perdasDoPeriodo.length} registro(s) · ${perdasInfo.totalCusto != null ? fmtBRLCompact(perdasInfo.totalCusto) : 'custo não informado'}`}
+            />
+            <StatCard
+              rotulo="Margem líquida"
+              valor={perdasInfo.margemLiquida != null ? fmtBRLCompact(perdasInfo.margemLiquida) : 'Não informada'}
+              faixa="good"
+              contexto={m.margem != null ? `Margem bruta ${fmtBRLCompact(m.margem)} − perdas em custo` : 'Cadastre o custo dos produtos para calcular'}
+            />
+            <StatCard
+              rotulo="Comércio com mais perda"
+              valor={perdasInfo.comercioTop?.nome ?? '—'}
+              faixa="accent"
+              contexto={perdasInfo.comercioTop ? `${fmtPct(perdasInfo.comercioTop.pct)} das perdas em custo do período` : 'Sem dado suficiente'}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Evolução mensal */}
       <Card className="p-5">
         <div className="text-sm font-bold">Evolução mensal de vendas</div>
         <div className="mb-4 text-xs text-ink-muted">
-          Faturamento por mês · Julho é o período corrente (atualiza conforme vendas são registradas).
+          Faturamento por mês
+          {ehMesAtual
+            ? ` · ${rotuloMesExtenso(periodoMes)} é o período corrente (atualiza conforme vendas são registradas).`
+            : ` · destaque para ${rotuloMesExtenso(periodoMes)}.`}
         </div>
         <div className="overflow-x-auto">
           {(() => {
@@ -262,6 +353,7 @@ export function DashboardAdmin() {
               {vencidos.length > 0
                 ? `Há ${fmtBRLCompact(totalVencido)} vencidos em ${vencidos.length} venda(s) a prazo.`
                 : 'Não há recebíveis vencidos no momento.'}
+              {perdasInfo.comercioTop && ` ${perdasInfo.comercioTop.nome} concentra ${fmtPct(perdasInfo.comercioTop.pct)} das perdas do mês.`}
             </p>
           </Card>
           <Card className="border-t-[3px] border-t-accent p-4">

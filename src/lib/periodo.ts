@@ -47,3 +47,55 @@ export const LABEL_PERIODICIDADE: Record<Periodicidade, string> = {
   trimestral: 'Trimestral',
   personalizado: 'Personalizado',
 };
+
+/**
+ * Seletor de período do Dashboard/Comissões — independente das Metas (que têm
+ * sua própria janela de datas). Um "mês" aqui é um `YYYY-MM` (ano-mês do
+ * calendário), a granularidade que o negócio usa para fechar comissão e
+ * comparar faturamento mês a mês.
+ */
+
+/** Ano-mês (`YYYY-MM`) de hoje, no fuso local. */
+export const mesAtualISO = (): string => toISO(new Date()).slice(0, 7);
+
+/** Intervalo [data_inicio, data_fim] (inclusive) do mês `YYYY-MM` informado. */
+export function rangeDoMes(anoMes: string): { data_inicio: string; data_fim: string } {
+  const [ano, mes] = anoMes.split('-').map(Number);
+  const inicio = new Date(ano, mes - 1, 1);
+  const fim = new Date(ano, mes, 0);
+  return { data_inicio: toISO(inicio), data_fim: toISO(fim) };
+}
+
+/** `true` se `dataISO` (YYYY-MM-DD) cai dentro do intervalo informado. */
+export const noPeriodo = (dataISO: string, p: { data_inicio: string; data_fim: string }): boolean =>
+  dataISO >= p.data_inicio && dataISO <= p.data_fim;
+
+export const mesAnterior = (anoMes: string): string => {
+  const [ano, mes] = anoMes.split('-').map(Number);
+  const d = new Date(ano, mes - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+export const mesSeguinte = (anoMes: string): string => {
+  const [ano, mes] = anoMes.split('-').map(Number);
+  const d = new Date(ano, mes, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const NOMES_MES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+const NOMES_MES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** Ex.: "Ago/26" — usado nos pontos do gráfico de evolução mensal. */
+export const rotuloMesAbrev = (anoMes: string): string => {
+  const [ano, mes] = anoMes.split('-').map(Number);
+  return `${NOMES_MES_ABREV[mes - 1]}/${String(ano).slice(2)}`;
+};
+
+/** Ex.: "Agosto de 2026" — usado nos títulos de seção do Dashboard/Comissões. */
+export const rotuloMesExtenso = (anoMes: string): string => {
+  const [ano, mes] = anoMes.split('-').map(Number);
+  return `${NOMES_MES[mes - 1]} de ${ano}`;
+};

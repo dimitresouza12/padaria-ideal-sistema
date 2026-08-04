@@ -28,16 +28,26 @@ interface ItemCarrinho {
  */
 export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () => void }) {
   const usuario = useAuthStore((s) => s.usuario)!;
-  const { produtos: todosProdutos, comercios, usuarios } = useDataStore();
+  const { produtos: todosProdutos, comercios: todosComercios, usuarios } = useDataStore();
   const registrarVenda = useDataStore((s) => s.registrarVenda);
   const irPara = useUiStore((s) => s.irPara);
   const notificar = useToastStore((s) => s.notificar);
 
-  // Um produto removido (inativo) não pode ser escolhido em vendas novas —
-  // vendas já registradas com ele continuam intactas no histórico.
+  // Um produto ou comércio removido (inativo) não pode ser escolhido em vendas
+  // novas — vendas já registradas com eles continuam intactas no histórico.
   const produtos = todosProdutos.filter((p) => p.ativo);
-
   const ehVendedor = usuario.perfil === 'vendedor';
+  // Para o vendedor, a própria carteira aparece primeiro na lista — mas sem
+  // esconder os demais clientes, porque ele mesmo pode vender fora da
+  // carteira (só é raro, não proibido).
+  const comercios = ehVendedor
+    ? [...todosComercios.filter((c) => c.ativo)].sort((a, b) => {
+        const aDele = a.vendedor_id === usuario.id ? 0 : 1;
+        const bDele = b.vendedor_id === usuario.id ? 0 : 1;
+        return aDele - bDele;
+      })
+    : todosComercios.filter((c) => c.ativo);
+
   // O admin também vende: o seletor de responsável inclui os vendedores E o
   // próprio admin logado. Um vendedor fica travado no próprio usuário.
   const opcoesVendedor = ehVendedor

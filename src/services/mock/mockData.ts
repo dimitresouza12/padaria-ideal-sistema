@@ -18,9 +18,10 @@ import type {
   Comercio,
   Meta,
   MetaProduto,
+  NovaPerdaInput,
   NovaVendaInput,
+  Perda,
   Periodicidade,
-  PontoHistorico,
   Produto,
   Sessao,
   SolicitacaoAcesso,
@@ -104,20 +105,11 @@ const PRODUTOS_SEED: Produto[] = [
 ];
 
 const COMERCIOS_SEED: Comercio[] = [
-  { id: 'c1', razao_social: 'Supermercado Compre Bem', cnpj: '12.345.678/0001-90', telefone: '(11) 4522-1187', regiao: 'Zona Sul', ativo: true },
-  { id: 'c2', razao_social: 'Panificadora Silva', cnpj: '23.456.789/0001-11', telefone: '(11) 3312-7740', regiao: 'Centro', ativo: true },
-  { id: 'c3', razao_social: 'Mercado Dia a Dia', cnpj: '34.567.890/0001-22', telefone: '(11) 4987-2231', regiao: 'Zona Norte', ativo: true },
-  { id: 'c4', razao_social: 'Empório São Jorge', cnpj: '45.678.901/0001-33', telefone: '(11) 2298-5563', regiao: 'Zona Leste', ativo: true },
-  { id: 'c5', razao_social: 'Mercearia Santa Luzia', cnpj: '56.789.012/0001-44', telefone: '(11) 3765-9021', regiao: 'Zona Sul', ativo: true },
-];
-
-const HISTORICO_SEED: PontoHistorico[] = [
-  { rotulo: 'Jan', total: 92000 },
-  { rotulo: 'Fev', total: 101000 },
-  { rotulo: 'Mar', total: 97000 },
-  { rotulo: 'Abr', total: 112000 },
-  { rotulo: 'Mai', total: 121000 },
-  { rotulo: 'Jun', total: 129000 },
+  { id: 'c1', razao_social: 'Supermercado Compre Bem', cnpj: '12.345.678/0001-90', telefone: '(11) 4522-1187', regiao: 'Zona Sul', vendedor_id: 'u1', ativo: true },
+  { id: 'c2', razao_social: 'Panificadora Silva', cnpj: '23.456.789/0001-11', telefone: '(11) 3312-7740', regiao: 'Centro', vendedor_id: 'u2', ativo: true },
+  { id: 'c3', razao_social: 'Mercado Dia a Dia', cnpj: '34.567.890/0001-22', telefone: '(11) 4987-2231', regiao: 'Zona Norte', vendedor_id: 'u3', ativo: true },
+  { id: 'c4', razao_social: 'Empório São Jorge', cnpj: '45.678.901/0001-33', telefone: '(11) 2298-5563', regiao: 'Zona Leste', vendedor_id: null, ativo: true },
+  { id: 'c5', razao_social: 'Mercearia Santa Luzia', cnpj: '56.789.012/0001-44', telefone: '(11) 3765-9021', regiao: 'Zona Sul', vendedor_id: 'u4', ativo: true },
 ];
 
 // Meta principal (mensal) — alimenta o KPI de destaque do Dashboard. O gestor
@@ -187,6 +179,45 @@ const VENDA_SPECS: VendaSpec[] = [
   { id: 'v15', vendedor_id: 'u4', comercio_id: 'c4', produto_id: 'p1', quantidade: 6, forma_pagamento: 'a_vista', dias_atras: 19, preco_varejo: 55 },
 ];
 
+/** Specs enxutas de perda; buildPerda congela custo/preço a partir do produto. */
+interface PerdaSpec {
+  id: string;
+  comercio_id: string;
+  produto_id: string;
+  vendedor_id: string;
+  quantidade: number;
+  dias_atras: number;
+  observacao?: string;
+}
+
+const PERDA_SPECS: PerdaSpec[] = [
+  { id: 'pd1', comercio_id: 'c1', produto_id: 'p1', vendedor_id: 'u1', quantidade: 3, dias_atras: 4, observacao: 'Vencido na prateleira' },
+  { id: 'pd2', comercio_id: 'c1', produto_id: 'p2', vendedor_id: 'u1', quantidade: 2, dias_atras: 4 },
+  { id: 'pd3', comercio_id: 'c2', produto_id: 'p1', vendedor_id: 'u2', quantidade: 5, dias_atras: 9, observacao: 'Caixa avariada no transporte' },
+  { id: 'pd4', comercio_id: 'c4', produto_id: 'p3', vendedor_id: 'u4', quantidade: 4, dias_atras: 12 },
+];
+
+function buildPerda(spec: PerdaSpec): Perda {
+  const produto = PRODUTOS_SEED.find((p) => p.id === spec.produto_id)!;
+  const custo_unitario = produto.preco_custo;
+  const preco_venda_unitario = produto.preco_varejo;
+  const data_perda = somarDias(HOJE, -spec.dias_atras);
+  return {
+    id: spec.id,
+    comercio_id: spec.comercio_id,
+    produto_id: spec.produto_id,
+    vendedor_id: spec.vendedor_id,
+    quantidade: spec.quantidade,
+    custo_unitario,
+    preco_venda_unitario,
+    valor_custo: custo_unitario != null ? custo_unitario * spec.quantidade : null,
+    valor_faturamento: preco_venda_unitario * spec.quantidade,
+    data_perda,
+    observacao: spec.observacao ?? null,
+    criado_em: new Date(data_perda).toISOString(),
+  };
+}
+
 function buildVenda(spec: VendaSpec): Venda {
   const produto = PRODUTOS_SEED.find((p) => p.id === spec.produto_id)!;
   const { preco_unitario, modo_preco } = resolverPreco(produto, spec.quantidade, spec.preco_varejo);
@@ -229,11 +260,11 @@ interface DBShape {
   produtos: Produto[];
   comercios: Comercio[];
   vendas: Venda[];
+  perdas: Perda[];
   metas: Meta[];
   metasProdutos: MetaProduto[];
   solicitacoes: SolicitacaoAcesso[];
   credenciais: Record<string, { senha: string; usuario_id: string }>;
-  historico: PontoHistorico[];
 }
 
 function seed(): DBShape {
@@ -242,11 +273,11 @@ function seed(): DBShape {
     produtos: structuredClone(PRODUTOS_SEED),
     comercios: structuredClone(COMERCIOS_SEED),
     vendas: VENDA_SPECS.map(buildVenda),
+    perdas: PERDA_SPECS.map(buildPerda),
     metas: structuredClone(METAS_SEED),
     metasProdutos: structuredClone(METAS_PRODUTO_SEED),
     solicitacoes: structuredClone(SOLICITACOES_SEED),
     credenciais: structuredClone(CREDENCIAIS_SEED),
-    historico: structuredClone(HISTORICO_SEED),
   };
 }
 
@@ -486,6 +517,20 @@ export const mockApi = {
     persist();
     return delay({ ...comercio });
   },
+  async removerComercio(id: string): Promise<void> {
+    const comercio = db.comercios.find((c) => c.id === id);
+    if (!comercio) throw new Error('Comércio não encontrado');
+    comercio.ativo = false;
+    persist();
+    return delay(undefined);
+  },
+  async reativarComercio(id: string): Promise<void> {
+    const comercio = db.comercios.find((c) => c.id === id);
+    if (!comercio) throw new Error('Comércio não encontrado');
+    comercio.ativo = true;
+    persist();
+    return delay(undefined);
+  },
 
   /* vendas */
   async listarVendas(): Promise<Venda[]> {
@@ -600,6 +645,41 @@ export const mockApi = {
     return delay(alertas);
   },
 
+  /* perdas — trocas de produto vencido registradas em visita (não é venda) */
+  async listarPerdas(): Promise<Perda[]> {
+    return delay([...db.perdas].sort((a, b) => b.data_perda.localeCompare(a.data_perda)));
+  },
+  async registrarPerda(input: NovaPerdaInput): Promise<Perda> {
+    const produto = db.produtos.find((p) => p.id === input.produto_id);
+    if (!produto) throw new Error('Produto não encontrado');
+    const custo_unitario = produto.preco_custo;
+    const preco_venda_unitario = produto.preco_varejo;
+    const perda: Perda = {
+      id: uid('pd'),
+      comercio_id: input.comercio_id,
+      produto_id: input.produto_id,
+      vendedor_id: input.vendedor_id,
+      quantidade: input.quantidade,
+      custo_unitario,
+      preco_venda_unitario,
+      valor_custo: custo_unitario != null ? custo_unitario * input.quantidade : null,
+      valor_faturamento: preco_venda_unitario * input.quantidade,
+      data_perda: input.data_perda,
+      observacao: input.observacao?.trim() || null,
+      criado_em: new Date().toISOString(),
+    };
+    db.perdas.push(perda);
+    persist();
+    return delay(perda);
+  },
+  async removerPerda(id: string): Promise<void> {
+    const existe = db.perdas.some((p) => p.id === id);
+    if (!existe) throw new Error('Perda não encontrada');
+    db.perdas = db.perdas.filter((p) => p.id !== id);
+    persist();
+    return delay(undefined);
+  },
+
   /* metas — o gestor pode ter várias simultâneas (mensal, semanal...). Só uma
    * é `principal` por vez; é ela que alimenta o KPI de destaque do Dashboard.
    * Em cada uma, a dimensão (geral ou por produto) decide como valor_alvo é
@@ -701,9 +781,6 @@ export const mockApi = {
     }
     persist();
     return delay(undefined);
-  },
-  async obterHistorico(): Promise<PontoHistorico[]> {
-    return delay([...db.historico]);
   },
 
   /* utilitário de demonstração */

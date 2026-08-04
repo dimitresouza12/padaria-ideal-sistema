@@ -1,19 +1,25 @@
 import { useAuthStore } from '@/store/useAuthStore';
 import { ABAS, useUiStore } from '@/store/useUiStore';
 import { useDataStore } from '@/store/useDataStore';
-import { IconLembrete, IconMenu } from '@/components/icons';
+import { IconChevronDireita, IconChevronEsquerda, IconLembrete, IconMenu } from '@/components/icons';
 import { iniciais, primeiroNome } from '@/lib/format';
+import { mesAtualISO, mesAnterior, mesSeguinte, rotuloMesExtenso } from '@/lib/periodo';
 
 const ROLE_LABEL = { admin: 'Administrador', vendedor: 'Vendedor' } as const;
 
 export function Header() {
   const usuario = useAuthStore((s) => s.usuario);
-  const { abaAtiva, irPara, toggleSidebar } = useUiStore();
+  const { abaAtiva, irPara, toggleSidebar, periodoMes, setPeriodoMes } = useUiStore();
   const vendas = useDataStore((s) => s.vendas);
 
   if (!usuario) return null;
   const aba = ABAS.find((a) => a.id === abaAtiva)!;
   const pendencias = vendas.filter((v) => v.status === 'pendente' || v.status === 'vencido').length;
+  // O seletor de período só faz sentido nas telas que agregam faturamento por
+  // mês — nas demais (cadastros, lembretes) ficaria mostrando um filtro que
+  // não afeta nada na tela, o que confunde mais do que ajuda.
+  const mostraSeletorPeriodo = abaAtiva === 'dashboard' || abaAtiva === 'comissoes' || abaAtiva === 'perdas';
+  const ehMesAtual = periodoMes === mesAtualISO();
 
   return (
     <header className="flex flex-nowrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3.5 lg:px-7">
@@ -32,6 +38,31 @@ export function Header() {
       </div>
 
       <div className="flex shrink-0 items-center gap-4">
+        {mostraSeletorPeriodo && (
+          <div className="flex items-center gap-1 rounded-lg border border-line-strong px-1 py-1">
+            <button
+              type="button"
+              onClick={() => setPeriodoMes(mesAnterior(periodoMes))}
+              aria-label="Mês anterior"
+              className="rounded-md p-1.5 text-ink-soft transition hover:bg-plane hover:text-ink"
+            >
+              <IconChevronEsquerda size={14} />
+            </button>
+            <span className="min-w-[92px] px-1 text-center text-[12px] font-bold capitalize tabular-nums sm:min-w-[112px]">
+              {rotuloMesExtenso(periodoMes)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPeriodoMes(mesSeguinte(periodoMes))}
+              disabled={ehMesAtual}
+              aria-label="Mês seguinte"
+              className="rounded-md p-1.5 text-ink-soft transition hover:bg-plane hover:text-ink disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+            >
+              <IconChevronDireita size={14} />
+            </button>
+          </div>
+        )}
+
         <button
           onClick={() => irPara('lembretes')}
           aria-label="Lembretes de pagamento"
