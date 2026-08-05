@@ -353,8 +353,9 @@ export const supabaseApi = {
     );
     const valor_total = round2(preco_unitario * input.quantidade);
     const custo_total = produto.preco_custo != null ? round2(produto.preco_custo * input.quantidade) : null;
+    const data_venda = input.data_venda ?? HOJE;
     const data_vencimento =
-      input.forma_pagamento === 'a_prazo' ? somarDias(HOJE, input.prazo_dias ?? 7) : null;
+      input.forma_pagamento === 'a_prazo' ? somarDias(data_venda, input.prazo_dias ?? 7) : null;
 
     return row(
       await supabase
@@ -371,7 +372,7 @@ export const supabaseApi = {
           margem: custo_total != null ? round2(valor_total - custo_total) : null,
           forma_pagamento: input.forma_pagamento,
           prazo_dias: input.forma_pagamento === 'a_prazo' ? input.prazo_dias ?? 7 : null,
-          data_venda: HOJE,
+          data_venda,
           data_vencimento,
           status: input.forma_pagamento === 'a_prazo' ? 'pendente' : 'pago',
         })

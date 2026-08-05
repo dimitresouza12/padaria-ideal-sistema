@@ -1,6 +1,6 @@
 import type { Periodicidade } from '@/types';
 
-const toISO = (d: Date): string => d.toISOString().slice(0, 10);
+export const toISO = (d: Date): string => d.toISOString().slice(0, 10);
 
 /**
  * Calcula data_inicio/data_fim para uma periodicidade, ancorada em `referencia`

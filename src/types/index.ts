@@ -185,6 +185,8 @@ export interface NovaVendaInput {
   preco_unitario?: number;
   forma_pagamento: FormaPagamento;
   prazo_dias?: number;
+  /** ISO date (YYYY-MM-DD). Omitido = hoje — usado para lançar venda atrasada na data correta. */
+  data_venda?: string;
 }
 
 export interface Sessao {

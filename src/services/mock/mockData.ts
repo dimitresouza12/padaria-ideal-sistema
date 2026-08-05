@@ -543,8 +543,15 @@ export const mockApi = {
     const { preco_unitario, modo_preco } = resolverPreco(produto, input.quantidade, input.preco_unitario);
     const valor_total = preco_unitario * input.quantidade;
     const custo_total = produto.preco_custo != null ? produto.preco_custo * input.quantidade : null;
+    const data_venda = input.data_venda ?? HOJE;
     const data_vencimento =
-      input.forma_pagamento === 'a_prazo' ? somarDias(HOJE, input.prazo_dias ?? 7) : null;
+      input.forma_pagamento === 'a_prazo' ? somarDias(data_venda, input.prazo_dias ?? 7) : null;
+    const status: Venda['status'] =
+      input.forma_pagamento !== 'a_prazo'
+        ? 'pago'
+        : data_vencimento && data_vencimento < HOJE
+          ? 'vencido'
+          : 'pendente';
 
     const venda: Venda = {
       id: uid('v'),
@@ -559,9 +566,9 @@ export const mockApi = {
       margem: custo_total != null ? valor_total - custo_total : null,
       forma_pagamento: input.forma_pagamento,
       prazo_dias: input.forma_pagamento === 'a_prazo' ? input.prazo_dias ?? 7 : null,
-      data_venda: HOJE,
+      data_venda,
       data_vencimento,
-      status: input.forma_pagamento === 'a_prazo' ? 'pendente' : 'pago',
+      status,
       criado_em: new Date().toISOString(),
     };
     db.vendas.push(venda);

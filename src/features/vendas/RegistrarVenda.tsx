@@ -7,6 +7,7 @@ import { Card, Button, Tag, ComboBox } from '@/components/ui';
 import { IconLixeira } from '@/components/icons';
 import { resolverPreco } from '@/lib/pricing';
 import { fmtBRL, fmtData } from '@/lib/format';
+import { toISO } from '@/lib/periodo';
 import type { FormaPagamento, Produto, Venda } from '@/types';
 
 /** Um item ainda não enviado — produto + quantidade + preço negociado (se houver). */
@@ -64,6 +65,10 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
   const [precoDigitado, setPrecoDigitado] = useState<string>('');
   const [forma, setForma] = useState<FormaPagamento>('a_vista');
   const [prazo, setPrazo] = useState(7);
+  // Default hoje, mas editável — permite lançar com atraso uma venda feita em
+  // dia/mês anterior sem que ela seja contada no período errado (pedido do
+  // cliente: vendas de julho lançadas em agosto estavam distorcendo o mês).
+  const [dataVenda, setDataVenda] = useState(() => toISO(new Date()));
   const [salvando, setSalvando] = useState(false);
   const [sucesso, setSucesso] = useState<Venda[] | null>(null);
   // Ref, não state: `setState` só reflete numa nova closure após o próximo
@@ -140,6 +145,7 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
           preco_unitario: item.precoDigitado,
           forma_pagamento: forma,
           prazo_dias: forma === 'a_prazo' ? prazo : undefined,
+          data_venda: dataVenda,
         });
         registradas.push(venda);
       } catch {
@@ -154,6 +160,7 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
       limparItemAtual();
       setForma('a_vista');
       setPrazo(7);
+      setDataVenda(toISO(new Date()));
     } else if (registradas.length > 0) {
       // Sucesso parcial: confirma o que gravou e devolve ao carrinho só o que
       // falhou — reenviar tudo de novo duplicaria o que já foi salvo.
@@ -301,6 +308,20 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
           </div>
 
           <div className="border-t border-line pt-4">
+            <label className="field-label">Data da venda</label>
+            <input
+              type="date"
+              className="field"
+              max={toISO(new Date())}
+              value={dataVenda}
+              onChange={(e) => setDataVenda(e.target.value)}
+            />
+            <div className="mt-1.5 text-[11px] text-ink-muted">
+              Lançando com atraso? Ajuste para a data em que a venda foi feita.
+            </div>
+          </div>
+
+          <div>
             <label className="field-label">Forma de pagamento</label>
             <div className="inline-flex gap-0.5 rounded-lg bg-plane p-0.5">
               {(['a_vista', 'a_prazo'] as const).map((f) => (
