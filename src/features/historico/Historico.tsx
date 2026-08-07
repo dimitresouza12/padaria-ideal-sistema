@@ -213,6 +213,9 @@ function DetalheEEdicaoVenda({
   const [forma, setForma] = useState<FormaPagamento>(venda.forma_pagamento);
   const [prazo, setPrazo] = useState(venda.prazo_dias ?? 7);
   const [dataVenda, setDataVenda] = useState(venda.data_venda);
+  // Corrige venda marcada como paga por engano: sem isso, editar uma venda a
+  // prazo já "paga" sempre mantém o status pago (não há como reabrir a cobrança).
+  const [marcarPendente, setMarcarPendente] = useState(false);
 
   // Sempre que a venda selecionada mudar (ou reabrir o modal), reseta o
   // formulário de edição para os valores atuais dela.
@@ -227,6 +230,7 @@ function DetalheEEdicaoVenda({
     setForma(venda.forma_pagamento);
     setPrazo(venda.prazo_dias ?? 7);
     setDataVenda(venda.data_venda);
+    setMarcarPendente(false);
   }, [venda.id]);
 
   const produto = produtos.find((p) => p.id === produtoId);
@@ -252,6 +256,7 @@ function DetalheEEdicaoVenda({
         forma_pagamento: forma,
         prazo_dias: forma === 'a_prazo' ? prazo : undefined,
         data_venda: dataVenda,
+        status: forma === 'a_prazo' && marcarPendente ? 'pendente' : undefined,
       });
       notificar('Venda atualizada.');
       setEditando(false);
@@ -414,7 +419,14 @@ function DetalheEEdicaoVenda({
           ))}
         </div>
         {venda.status === 'pago' && venda.forma_pagamento === 'a_prazo' && forma === 'a_prazo' && (
-          <div className="mt-1.5 text-[11px] text-ink-muted">Esta venda já está paga — a situação será mantida.</div>
+          <label className="mt-2 flex items-center gap-2 text-[12.5px] text-ink-soft">
+            <input
+              type="checkbox"
+              checked={marcarPendente}
+              onChange={(e) => setMarcarPendente(e.target.checked)}
+            />
+            Esta venda foi marcada como paga por engano — reabrir como pendente
+          </label>
         )}
       </div>
 

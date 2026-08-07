@@ -37,7 +37,10 @@ interface DataState {
 
   carregarTudo: () => Promise<void>;
   registrarVenda: (input: NovaVendaInput) => Promise<Venda>;
-  atualizarVenda: (vendaId: string, input: NovaVendaInput & { data_venda?: string }) => Promise<Venda>;
+  atualizarVenda: (
+    vendaId: string,
+    input: NovaVendaInput & { data_venda?: string; status?: 'pago' | 'pendente' },
+  ) => Promise<Venda>;
   removerVenda: (vendaId: string) => Promise<void>;
   darBaixa: (vendaId: string) => Promise<void>;
 

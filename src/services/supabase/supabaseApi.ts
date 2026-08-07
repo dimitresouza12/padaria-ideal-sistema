@@ -386,7 +386,10 @@ export const supabaseApi = {
    * e a forma de pagamento continua "a prazo", preserva o status pago —
    * editar não deve reabrir uma cobrança já quitada.
    */
-  async atualizarVenda(vendaId: string, input: NovaVendaInput & { data_venda?: string }): Promise<Venda> {
+  async atualizarVenda(
+    vendaId: string,
+    input: NovaVendaInput & { data_venda?: string; status?: 'pago' | 'pendente' },
+  ): Promise<Venda> {
     const vendaAtual = maybe(
       await supabase.from('vendas').select('*').eq('id', vendaId).maybeSingle(),
     );
@@ -410,7 +413,9 @@ export const supabaseApi = {
     let status: Venda['status'];
     if (input.forma_pagamento === 'a_vista') {
       status = 'pago';
-    } else if (vendaAtual.status === 'pago') {
+    } else if (input.status === 'pendente') {
+      status = data_vencimento && data_vencimento < HOJE ? 'vencido' : 'pendente';
+    } else if (input.status === 'pago' || vendaAtual.status === 'pago') {
       status = 'pago';
     } else {
       status = data_vencimento && data_vencimento < HOJE ? 'vencido' : 'pendente';

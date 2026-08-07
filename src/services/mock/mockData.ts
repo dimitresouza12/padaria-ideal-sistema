@@ -582,7 +582,10 @@ export const mockApi = {
    * forma de pagamento continua "a prazo", preserva o status pago — editar
    * não deve reabrir uma cobrança já quitada.
    */
-  async atualizarVenda(vendaId: string, input: NovaVendaInput & { data_venda?: string }): Promise<Venda> {
+  async atualizarVenda(
+    vendaId: string,
+    input: NovaVendaInput & { data_venda?: string; status?: 'pago' | 'pendente' },
+  ): Promise<Venda> {
     const venda = db.vendas.find((v) => v.id === vendaId);
     if (!venda) throw new Error('Venda não encontrada');
     const produto = db.produtos.find((p) => p.id === input.produto_id);
@@ -598,8 +601,10 @@ export const mockApi = {
     let status: Venda['status'];
     if (input.forma_pagamento === 'a_vista') {
       status = 'pago';
-    } else if (venda.status === 'pago') {
-      status = 'pago'; // já quitada — editar não reabre a cobrança
+    } else if (input.status === 'pendente') {
+      status = data_vencimento && data_vencimento < HOJE ? 'vencido' : 'pendente'; // correção manual: reabre a cobrança
+    } else if (input.status === 'pago' || venda.status === 'pago') {
+      status = 'pago';
     } else {
       status = data_vencimento && data_vencimento < HOJE ? 'vencido' : 'pendente';
     }
