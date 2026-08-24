@@ -33,7 +33,7 @@ Testado ao vivo (mock local): pedido de 3 produtos ao mesmo cliente apareceu com
 vez e a linha sumiu da lista; Ticket Médio do mês passou a mostrar "1 pedido(s)" em vez de 3.
 Build (`tsc --noEmit` + `vite build`) limpo.
 
-## 2. Indicador de recompra — ⏳ PENDENTE
+## 2. Indicador de recompra — ✅ CORRIGIDO E TESTADO
 
 > "eu queria ver a possibilidade de você colocar um indicador de recompra (...) pra que eu
 > conseguisse identificar os clientes que reduziram a frequência de pedido, há quanto tempo
@@ -42,10 +42,18 @@ Build (`tsc --noEmit` + `vite build`) limpo.
 Limiares confirmados com o cliente (áudio 24/08): atenção a partir de **15 dias** sem comprar,
 crítico a partir de **45 dias**.
 
-Proposta (não implementada ainda): `diasDesde()` novo em `src/lib/periodo.ts`; última compra
-por comércio derivada de `vendas` (sem migração de schema); seção nova no Dashboard ("Clientes
-em risco"), colunas novas em Clientes/Comércios, e o card "Meus clientes" do Dashboard do
-Vendedor passa a mostrar "há N dias" em vez do binário atual.
+Implementado: `diasDesde()` novo em `src/lib/periodo.ts`; última compra por comércio derivada
+de `vendas` (sem migração de schema, recência sempre relativa a HOJE, todo o histórico). Nova
+seção "Clientes em risco de recompra" no Dashboard do Admin (+ frase no insight "O que
+preocupa"), coluna "Última compra" em Clientes/Comércios (desktop e mobile), e o card "Meus
+clientes" do Dashboard do Vendedor passou de binário ("comprou este mês") para "há N dias",
+calculado só com as vendas daquele vendedor.
+
+Testado ao vivo (mock local): Dashboard mostrou 4 clientes com 29-33 dias sem comprar (tons de
+atenção); insight "O que preocupa" somou a frase automaticamente; tela de Clientes mostrou
+"Última compra" com badge por cliente; Dashboard da Ana (vendedora) mostrou "Supermercado
+Compre Bem — 30 dias sem comprar" calculado só a partir das vendas dela (uma venda de outro
+vendedor ao mesmo cliente não "resetou" a contagem). Build limpo.
 
 ## 3. Metas de visitas / novos clientes / ticket médio + registro de visita — ⏳ PENDENTE
 
@@ -70,8 +78,8 @@ Proposta (não implementada ainda):
 ## Ordem de execução
 
 1. Lembretes agrupados + Ticket Médio — ✅ feito.
-2. Recompra — próximo.
-3. Visitas + metas por métrica — maior escopo, única com migração de schema nova.
+2. Recompra — ✅ feito.
+3. Visitas + metas por métrica — próximo, maior escopo, única com migração de schema nova.
 
 ---
 

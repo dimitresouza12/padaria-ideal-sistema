@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Button, Modal, ConfirmModal, SectionLabel, EmptyState } from '@/components/ui';
+import { Card, Button, Modal, ConfirmModal, SectionLabel, EmptyState, Tag } from '@/components/ui';
 import { IconEditar } from '@/components/icons';
+import { diasDesde } from '@/lib/periodo';
+import { fmtData } from '@/lib/format';
 import type { Comercio } from '@/types';
 
 // Bairros e distritos de Morada Nova (CE). O campo continua chamado `regiao`
@@ -41,6 +43,7 @@ const FORM_INICIAL = { razao_social: '', telefone: '', regiao: 'Centro', vendedo
 export function Comercios() {
   const comercios = useDataStore((s) => s.comercios);
   const usuarios = useDataStore((s) => s.usuarios);
+  const vendas = useDataStore((s) => s.vendas);
   const removerComercio = useDataStore((s) => s.removerComercio);
   const reativarComercio = useDataStore((s) => s.reativarComercio);
   const notificar = useToastStore((s) => s.notificar);
@@ -53,6 +56,22 @@ export function Comercios() {
 
   const vendedores = usuarios.filter((u) => u.perfil === 'vendedor');
   const nomeVendedor = (id: string | null) => (id ? vendedores.find((v) => v.id === id)?.nome ?? '—' : null);
+
+  // Última compra por cliente — recência é relativa a hoje, todo o histórico
+  // de vendas (não só o período selecionado em outra tela).
+  const ultimaCompra = (comercioId: string): string | null =>
+    vendas
+      .filter((v) => v.comercio_id === comercioId)
+      .reduce<string | null>((max, v) => (max === null || v.data_venda > max ? v.data_venda : max), null);
+
+  const recompraTag = (comercioId: string) => {
+    const ultima = ultimaCompra(comercioId);
+    if (!ultima) return <Tag tone="bad">Nunca comprou</Tag>;
+    const dias = diasDesde(ultima);
+    if (dias >= 45) return <Tag tone="bad">{fmtData(ultima)} · {dias}d</Tag>;
+    if (dias >= 15) return <Tag tone="warn">{fmtData(ultima)} · {dias}d</Tag>;
+    return <span className="tabular-nums text-ink-soft">{fmtData(ultima)}</span>;
+  };
 
   // Cliente desligado some do dia a dia (cadastro, seletor de venda) por
   // padrão — mas fica reversível via "Mostrar inativos", porque "desligar da
@@ -124,6 +143,7 @@ export function Comercios() {
                     <th className="px-5 py-2.5">Telefone</th>
                     <th className="px-5 py-2.5">Bairro/Distrito</th>
                     <th className="px-5 py-2.5">Vendedor</th>
+                    <th className="px-5 py-2.5">Última compra</th>
                     <th className="px-5 py-2.5" />
                   </tr>
                 </thead>
@@ -137,6 +157,7 @@ export function Comercios() {
                       <td className="px-5 py-3 tabular-nums text-ink-muted">{c.telefone || '—'}</td>
                       <td className="px-5 py-3">{c.regiao}</td>
                       <td className="px-5 py-3 text-ink-soft">{nomeVendedor(c.vendedor_id) ?? '—'}</td>
+                      <td className="px-5 py-3">{c.ativo ? recompraTag(c.id) : '—'}</td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           {c.ativo ? (
@@ -190,6 +211,11 @@ export function Comercios() {
                 <div className="mt-1.5 text-[12px] text-ink-soft">
                   Vendedor: <span className="font-semibold">{nomeVendedor(c.vendedor_id) ?? 'Nenhum'}</span>
                 </div>
+                {c.ativo && (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-ink-soft">
+                    Última compra: {recompraTag(c.id)}
+                  </div>
+                )}
                 <div className="mt-3 border-t border-line pt-3">
                   {c.ativo ? (
                     <Button variant="danger" size="sm" className="w-full" onClick={() => setAlvoRemocao(c)}>Remover</Button>

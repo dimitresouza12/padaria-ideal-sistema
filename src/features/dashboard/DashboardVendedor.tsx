@@ -4,7 +4,7 @@ import { useDataStore } from '@/store/useDataStore';
 import { useUiStore } from '@/store/useUiStore';
 import { Card, StatCard, ProgressBar, Tag } from '@/components/ui';
 import { fmtBRLCompact, fmtData, primeiroNome } from '@/lib/format';
-import { noPeriodo, rangeDoMes, rotuloMesExtenso } from '@/lib/periodo';
+import { diasDesde, noPeriodo, rangeDoMes, rotuloMesExtenso } from '@/lib/periodo';
 
 export function DashboardVendedor() {
   const usuario = useAuthStore((s) => s.usuario)!;
@@ -41,16 +41,19 @@ export function DashboardVendedor() {
   // Carteira do vendedor — resolve o "branco na cabeça, será que estou
   // pulando algum cliente?" sem precisar de agenda/rota (o cliente pediu só
   // a carteira, a decisão de quem visitar em cada dia continua manual).
+  // Recência é relativa a HOJE (todo o histórico), não ao mês selecionado.
   const minhaCarteira = useMemo(
     () =>
       comercios
         .filter((c) => c.ativo && c.vendedor_id === usuario.id)
-        .map((c) => ({
-          comercio: c,
-          comprouEsteMes: minhas.some((v) => v.comercio_id === c.id),
-        }))
-        .sort((a, b) => Number(a.comprouEsteMes) - Number(b.comprouEsteMes)),
-    [comercios, minhas, usuario.id],
+        .map((c) => {
+          const ultimaCompra = vendas
+            .filter((v) => v.comercio_id === c.id && v.vendedor_id === usuario.id)
+            .reduce<string | null>((max, v) => (max === null || v.data_venda > max ? v.data_venda : max), null);
+          return { comercio: c, ultimaCompra, dias: ultimaCompra ? diasDesde(ultimaCompra) : null };
+        })
+        .sort((a, b) => (b.dias ?? Infinity) - (a.dias ?? Infinity)),
+    [comercios, vendas, usuario.id],
   );
 
   return (
@@ -100,14 +103,21 @@ export function DashboardVendedor() {
         <Card className="p-5">
           <div className="mb-1 text-sm font-bold">Meus clientes</div>
           <div className="mb-3 text-xs text-ink-muted">
-            {minhaCarteira.filter((c) => !c.comprouEsteMes).length} de {minhaCarteira.length} ainda sem compra em{' '}
-            {rotuloMesExtenso(periodoMes)} — quem falta aparece primeiro.
+            Ordenado por tempo sem comprar — quem está há mais tempo aparece primeiro.
           </div>
           <div className="flex flex-col gap-1.5">
-            {minhaCarteira.map(({ comercio, comprouEsteMes }) => (
+            {minhaCarteira.map(({ comercio, dias }) => (
               <div key={comercio.id} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 text-[12.5px]">
                 <span className="font-medium">{comercio.razao_social}</span>
-                <Tag tone={comprouEsteMes ? 'good' : 'neutral'}>{comprouEsteMes ? 'Comprou este mês' : 'Ainda não comprou'}</Tag>
+                {dias === null ? (
+                  <Tag tone="bad">Nunca comprou</Tag>
+                ) : dias >= 45 ? (
+                  <Tag tone="bad">{dias} dias sem comprar</Tag>
+                ) : dias >= 15 ? (
+                  <Tag tone="warn">{dias} dias sem comprar</Tag>
+                ) : (
+                  <Tag tone="good">Comprou há {dias} dia(s)</Tag>
+                )}
               </div>
             ))}
           </div>

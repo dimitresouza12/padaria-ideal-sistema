@@ -4,7 +4,7 @@ import { useUiStore } from '@/store/useUiStore';
 import { Card, StatCard, SectionLabel, Tag } from '@/components/ui';
 import { IconAlerta } from '@/components/icons';
 import { fmtBRLCompact, fmtData, fmtPct } from '@/lib/format';
-import { mesAnterior as mesAnteriorA, mesAtualISO, noPeriodo, rangeDoMes, rotuloMesAbrev, rotuloMesExtenso } from '@/lib/periodo';
+import { diasDesde, mesAnterior as mesAnteriorA, mesAtualISO, noPeriodo, rangeDoMes, rotuloMesAbrev, rotuloMesExtenso } from '@/lib/periodo';
 import { agruparVendasPorPedido } from '@/lib/pedidos';
 import type { Venda } from '@/types';
 
@@ -128,6 +128,24 @@ export function DashboardAdmin() {
   const vencidos = vendas.filter((v) => v.status === 'vencido');
   const totalVencido = vencidos.reduce((a, v) => a + v.valor_total, 0);
 
+  // Recompra: "há quanto tempo o cliente não pede" é relativo a HOJE, mesma
+  // lógica dos recebíveis vencidos acima — não ao mês selecionado no Header.
+  // Limiares confirmados com o cliente: atenção 15 dias, crítico 45 dias.
+  const recompra = useMemo(() => {
+    const ativos = comercios.filter((c) => c.ativo);
+    const linhas = ativos.map((c) => {
+      const ultimaCompra = vendas
+        .filter((v) => v.comercio_id === c.id)
+        .reduce<string | null>((max, v) => (max === null || v.data_venda > max ? v.data_venda : max), null);
+      const dias = ultimaCompra ? diasDesde(ultimaCompra) : null;
+      return { id: c.id, nome: c.razao_social, ultimaCompra, dias };
+    });
+    const emRisco = linhas
+      .filter((l) => l.dias === null || l.dias >= 15)
+      .sort((a, b) => (b.dias ?? Infinity) - (a.dias ?? Infinity));
+    return { emRisco };
+  }, [comercios, vendas]);
+
   const acimaMeta = m.metaPct >= 100;
   const subiu = m.deltaPct >= 0;
   // Sem meta principal cadastrada, valorAlvo/gap são 0/negativo e não têm
@@ -234,6 +252,42 @@ export function DashboardAdmin() {
               contexto={perdasInfo.comercioTop ? `${fmtPct(perdasInfo.comercioTop.pct)} das perdas em custo do período` : 'Sem dado suficiente'}
             />
           </div>
+        </div>
+      )}
+
+      {recompra.emRisco.length > 0 && (
+        <div>
+          <SectionLabel>Clientes em risco de recompra</SectionLabel>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-line-strong text-left text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
+                    <th className="px-5 py-2.5">Cliente</th>
+                    <th className="px-5 py-2.5">Última compra</th>
+                    <th className="px-5 py-2.5">Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recompra.emRisco.slice(0, 8).map((c) => (
+                    <tr key={c.id} className="border-b border-line text-[13px] last:border-0">
+                      <td className="px-5 py-3 font-semibold">{c.nome}</td>
+                      <td className="px-5 py-3 tabular-nums">{c.ultimaCompra ? fmtData(c.ultimaCompra) : '—'}</td>
+                      <td className="px-5 py-3">
+                        {c.dias === null ? (
+                          <Tag tone="bad">Nunca comprou</Tag>
+                        ) : c.dias >= 45 ? (
+                          <Tag tone="bad">{c.dias} dias sem comprar</Tag>
+                        ) : (
+                          <Tag tone="warn">{c.dias} dias sem comprar</Tag>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -359,6 +413,8 @@ export function DashboardAdmin() {
                 ? `Há ${fmtBRLCompact(totalVencido)} vencidos em ${vencidos.length} venda(s) a prazo.`
                 : 'Não há recebíveis vencidos no momento.'}
               {perdasInfo.comercioTop && ` ${perdasInfo.comercioTop.nome} concentra ${fmtPct(perdasInfo.comercioTop.pct)} das perdas do mês.`}
+              {recompra.emRisco.length > 0 &&
+                ` ${recompra.emRisco.length} cliente(s) sem comprar há 15 dias ou mais.`}
             </p>
           </Card>
           <Card className="border-t-[3px] border-t-accent p-4">

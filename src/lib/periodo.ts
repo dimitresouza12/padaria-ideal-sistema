@@ -58,6 +58,13 @@ export const LABEL_PERIODICIDADE: Record<Periodicidade, string> = {
 /** Ano-mês (`YYYY-MM`) de hoje, no fuso local. */
 export const mesAtualISO = (): string => toISO(new Date()).slice(0, 7);
 
+/** Dias corridos entre `dataISO` (YYYY-MM-DD) e hoje — usado pelo indicador de recompra. */
+export function diasDesde(dataISO: string): number {
+  const hoje = new Date(toISO(new Date()) + 'T00:00:00');
+  const data = new Date(dataISO + 'T00:00:00');
+  return Math.round((hoje.getTime() - data.getTime()) / 86_400_000);
+}
+
 /** Intervalo [data_inicio, data_fim] (inclusive) do mês `YYYY-MM` informado. */
 export function rangeDoMes(anoMes: string): { data_inicio: string; data_fim: string } {
   const [ano, mes] = anoMes.split('-').map(Number);
