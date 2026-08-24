@@ -5,6 +5,7 @@ import { Card, StatCard, SectionLabel, Tag } from '@/components/ui';
 import { IconAlerta } from '@/components/icons';
 import { fmtBRLCompact, fmtData, fmtPct } from '@/lib/format';
 import { mesAnterior as mesAnteriorA, mesAtualISO, noPeriodo, rangeDoMes, rotuloMesAbrev, rotuloMesExtenso } from '@/lib/periodo';
+import { agruparVendasPorPedido } from '@/lib/pedidos';
 import type { Venda } from '@/types';
 
 const totalNoPeriodo = (vendas: Venda[], anoMes: string): number =>
@@ -36,7 +37,11 @@ export function DashboardAdmin() {
     const custo = custoConhecido ? vendasDoPeriodo.reduce((a, v) => a + (v.custo_total ?? 0), 0) : null;
     const margem = custo != null ? faturamento - custo : null;
     const margemPct = margem != null && faturamento ? (margem / faturamento) * 100 : null;
-    const ticket = vendasDoPeriodo.length ? faturamento / vendasDoPeriodo.length : 0;
+    // Ticket médio é por PEDIDO, não por linha de produto — uma venda com 3
+    // itens ao mesmo cliente/dia é 1 pedido, não 3 (mesmo agrupamento usado em
+    // Lembretes de Pagamento).
+    const pedidosDoPeriodo = agruparVendasPorPedido(vendasDoPeriodo);
+    const ticket = pedidosDoPeriodo.length ? faturamento / pedidosDoPeriodo.length : 0;
     const totalMesAnterior = totalNoPeriodo(vendas, mesAnteriorA(periodoMes));
     const deltaPct = totalMesAnterior ? ((faturamento - totalMesAnterior) / totalMesAnterior) * 100 : 0;
 
@@ -52,7 +57,7 @@ export function DashboardAdmin() {
     const metaPct = valorAlvo ? (faturamentoNaJanela / valorAlvo) * 100 : 0;
     const gap = valorAlvo - faturamentoNaJanela;
 
-    return { faturamento, margem, margemPct, ticket, deltaPct, metaPct, gap, pedidos: vendasDoPeriodo.length };
+    return { faturamento, margem, margemPct, ticket, deltaPct, metaPct, gap, pedidos: pedidosDoPeriodo.length };
   }, [vendasDoPeriodo, vendas, periodoMes, valorAlvo, metaPrincipal]);
 
   const ranking = useMemo(() => {

@@ -1,28 +1,49 @@
-import { useMemo } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useDataStore } from '@/store/useDataStore';
 import { useToastStore } from '@/store/useToastStore';
 import { Card, Button, Tag, EmptyState } from '@/components/ui';
 import { fmtBRL, fmtBRLCompact, fmtData } from '@/lib/format';
+import { agruparVendasPorPedido, type GrupoPedido } from '@/lib/pedidos';
 
 export function Lembretes() {
   const usuario = useAuthStore((s) => s.usuario)!;
-  const { vendas, comercios, usuarios } = useDataStore();
-  const darBaixa = useDataStore((s) => s.darBaixa);
+  const { vendas, comercios, usuarios, produtos } = useDataStore();
+  const darBaixaEmLote = useDataStore((s) => s.darBaixaEmLote);
   const notificar = useToastStore((s) => s.notificar);
+  const [expandido, setExpandido] = useState<string | null>(null);
+  const [baixando, setBaixando] = useState<string | null>(null);
 
   const lista = useMemo(() => {
     return vendas
       .filter((v) => v.status === 'pendente' || v.status === 'vencido')
-      .filter((v) => usuario.perfil === 'admin' || v.vendedor_id === usuario.id)
-      .sort((a, b) => (a.data_vencimento ?? '').localeCompare(b.data_vencimento ?? ''));
+      .filter((v) => usuario.perfil === 'admin' || v.vendedor_id === usuario.id);
   }, [vendas, usuario]);
 
-  const totalVencido = lista.filter((v) => v.status === 'vencido').reduce((a, v) => a + v.valor_total, 0);
-  const totalPendente = lista.filter((v) => v.status === 'pendente').reduce((a, v) => a + v.valor_total, 0);
+  const grupos = useMemo(
+    () =>
+      agruparVendasPorPedido(lista).sort((a, b) => (a.data_vencimento ?? '').localeCompare(b.data_vencimento ?? '')),
+    [lista],
+  );
+
+  const totalVencido = grupos.filter((g) => g.status === 'vencido').reduce((a, g) => a + g.valor_total, 0);
+  const totalPendente = grupos.filter((g) => g.status === 'pendente').reduce((a, g) => a + g.valor_total, 0);
 
   const nomeComercio = (id: string) => comercios.find((c) => c.id === id)?.razao_social ?? '—';
   const nomeVendedor = (id: string) => usuarios.find((u) => u.id === id)?.nome ?? '—';
+  const nomeProduto = (id: string) => produtos.find((p) => p.id === id)?.nome ?? '—';
+
+  const onDarBaixa = async (grupo: GrupoPedido) => {
+    setBaixando(grupo.chave);
+    try {
+      await darBaixaEmLote(grupo.itens.map((v) => v.id));
+      notificar('Pagamento confirmado.');
+    } catch {
+      notificar('Não foi possível confirmar o pagamento. Verifique sua conexão e tente novamente.', 'bad');
+    } finally {
+      setBaixando(null);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -41,7 +62,7 @@ export function Lembretes() {
         </Card>
       </div>
 
-      {lista.length === 0 ? (
+      {grupos.length === 0 ? (
         <Card><EmptyState>Nenhum pagamento pendente. Todas as vendas a prazo estão quitadas.</EmptyState></Card>
       ) : (
         <>
@@ -53,6 +74,7 @@ export function Lembretes() {
                   <tr className="border-b border-line-strong text-left text-[10.5px] font-bold uppercase tracking-wider text-ink-muted">
                     <th className="px-5 py-2.5">Cliente</th>
                     <th className="px-5 py-2.5">Vendedor</th>
+                    <th className="px-5 py-2.5">Itens</th>
                     <th className="px-5 py-2.5">Valor</th>
                     <th className="px-5 py-2.5">Vencimento</th>
                     <th className="px-5 py-2.5">Situação</th>
@@ -60,21 +82,50 @@ export function Lembretes() {
                   </tr>
                 </thead>
                 <tbody>
-                  {lista.map((v) => (
-                    <tr key={v.id} className="border-b border-line text-[13px] last:border-0">
-                      <td className="px-5 py-3 font-semibold">{nomeComercio(v.comercio_id)}</td>
-                      <td className="px-5 py-3">{nomeVendedor(v.vendedor_id)}</td>
-                      <td className="px-5 py-3 font-semibold tabular-nums">{fmtBRL(v.valor_total)}</td>
-                      <td className="px-5 py-3 tabular-nums">{fmtData(v.data_vencimento)}</td>
-                      <td className="px-5 py-3">
-                        {v.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <Button variant="good" size="sm" onClick={() => void darBaixa(v.id).then(() => notificar('Pagamento confirmado.'))}>
-                          Dar Baixa
-                        </Button>
-                      </td>
-                    </tr>
+                  {grupos.map((g) => (
+                    <Fragment key={g.chave}>
+                      <tr className="border-b border-line text-[13px] last:border-0">
+                        <td className="px-5 py-3 font-semibold">{nomeComercio(g.comercio_id)}</td>
+                        <td className="px-5 py-3">{nomeVendedor(g.vendedor_id)}</td>
+                        <td className="px-5 py-3">
+                          {g.itens.length === 1 ? (
+                            nomeProduto(g.itens[0].produto_id)
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setExpandido(expandido === g.chave ? null : g.chave)}
+                              className="font-semibold text-accent-dark underline-offset-2 hover:underline"
+                            >
+                              {g.itens.length} produtos{expandido === g.chave ? ' ▴' : ' ▾'}
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 font-semibold tabular-nums">{fmtBRL(g.valor_total)}</td>
+                        <td className="px-5 py-3 tabular-nums">{fmtData(g.data_vencimento)}</td>
+                        <td className="px-5 py-3">
+                          {g.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <Button variant="good" size="sm" disabled={baixando === g.chave} onClick={() => void onDarBaixa(g)}>
+                            {baixando === g.chave ? 'Confirmando…' : 'Dar Baixa'}
+                          </Button>
+                        </td>
+                      </tr>
+                      {expandido === g.chave && g.itens.length > 1 && (
+                        <tr className="border-b border-line bg-plane/40 text-[12.5px]">
+                          <td colSpan={7} className="px-5 py-3">
+                            <div className="flex flex-col gap-1">
+                              {g.itens.map((v) => (
+                                <div key={v.id} className="flex items-center justify-between text-ink-soft">
+                                  <span>{nomeProduto(v.produto_id)} · {v.quantidade} cx</span>
+                                  <span className="tabular-nums font-medium">{fmtBRL(v.valor_total)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -83,26 +134,50 @@ export function Lembretes() {
 
           {/* Mobile: cards */}
           <div className="flex flex-col gap-3 sm:hidden">
-            {lista.map((v) => (
-              <Card key={v.id} className="p-4">
+            {grupos.map((g) => (
+              <Card key={g.chave} className="p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="text-[13.5px] font-semibold">{nomeComercio(v.comercio_id)}</div>
-                    <div className="text-xs text-ink-muted">{nomeVendedor(v.vendedor_id)}</div>
+                    <div className="text-[13.5px] font-semibold">{nomeComercio(g.comercio_id)}</div>
+                    <div className="text-xs text-ink-muted">{nomeVendedor(g.vendedor_id)}</div>
                   </div>
-                  {v.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
+                  {g.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
                 </div>
+                <div className="mt-2 text-xs text-ink-muted">
+                  {g.itens.length === 1 ? (
+                    nomeProduto(g.itens[0].produto_id)
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setExpandido(expandido === g.chave ? null : g.chave)}
+                      className="font-semibold text-accent-dark underline-offset-2 hover:underline"
+                    >
+                      {g.itens.length} produtos{expandido === g.chave ? ' ▴' : ' ▾'}
+                    </button>
+                  )}
+                </div>
+                {expandido === g.chave && g.itens.length > 1 && (
+                  <div className="mt-2 flex flex-col gap-1 rounded-lg bg-plane/40 p-2.5 text-[12px]">
+                    {g.itens.map((v) => (
+                      <div key={v.id} className="flex items-center justify-between text-ink-soft">
+                        <span>{nomeProduto(v.produto_id)} · {v.quantidade} cx</span>
+                        <span className="tabular-nums font-medium">{fmtBRL(v.valor_total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-2.5 flex items-center justify-between border-t border-line pt-2.5 text-[12.5px]">
-                  <span className="tabular-nums text-ink-muted">Vence {fmtData(v.data_vencimento)}</span>
-                  <span className="font-bold tabular-nums">{fmtBRL(v.valor_total)}</span>
+                  <span className="tabular-nums text-ink-muted">Vence {fmtData(g.data_vencimento)}</span>
+                  <span className="font-bold tabular-nums">{fmtBRL(g.valor_total)}</span>
                 </div>
                 <Button
                   variant="good"
                   size="sm"
                   className="mt-3 w-full"
-                  onClick={() => void darBaixa(v.id).then(() => notificar('Pagamento confirmado.'))}
+                  disabled={baixando === g.chave}
+                  onClick={() => void onDarBaixa(g)}
                 >
-                  Dar Baixa
+                  {baixando === g.chave ? 'Confirmando…' : 'Dar Baixa'}
                 </Button>
               </Card>
             ))}

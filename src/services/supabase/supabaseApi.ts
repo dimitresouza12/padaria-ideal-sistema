@@ -467,6 +467,15 @@ export const supabaseApi = {
     if (!venda) throw new Error('Venda não encontrada');
     return venda;
   },
+  async darBaixaPagamentoEmLote(vendaIds: string[]): Promise<void> {
+    const { data, error } = await supabase
+      .from('vendas')
+      .update({ status: 'pago' })
+      .in('id', vendaIds)
+      .select('id');
+    if (error) throw new Error(error.message);
+    if (!data || data.length !== vendaIds.length) throw new Error('Venda não encontrada');
+  },
   async listarAlertas(): Promise<AlertaPagamento[]> {
     await normalizarVencidos();
     const abertos = rows(

@@ -642,6 +642,14 @@ export const mockApi = {
     persist();
     return delay(venda);
   },
+  async darBaixaPagamentoEmLote(vendaIds: string[]): Promise<void> {
+    const idsSet = new Set(vendaIds);
+    const encontradas = db.vendas.filter((v) => idsSet.has(v.id));
+    if (encontradas.length !== vendaIds.length) throw new Error('Venda não encontrada');
+    encontradas.forEach((v) => { v.status = 'pago'; });
+    persist();
+    return delay(undefined);
+  },
   async listarAlertas(): Promise<AlertaPagamento[]> {
     const abertos = db.vendas.filter((v) => v.status === 'pendente' || v.status === 'vencido');
     const alertas: AlertaPagamento[] = abertos.map((v) => ({

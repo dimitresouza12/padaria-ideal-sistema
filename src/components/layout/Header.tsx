@@ -4,6 +4,7 @@ import { useDataStore } from '@/store/useDataStore';
 import { IconChevronDireita, IconChevronEsquerda, IconLembrete, IconMenu } from '@/components/icons';
 import { iniciais, primeiroNome } from '@/lib/format';
 import { mesAtualISO, mesAnterior, mesSeguinte, rotuloMesExtenso } from '@/lib/periodo';
+import { agruparVendasPorPedido } from '@/lib/pedidos';
 
 const ROLE_LABEL = { admin: 'Administrador', vendedor: 'Vendedor' } as const;
 
@@ -14,7 +15,11 @@ export function Header() {
 
   if (!usuario) return null;
   const aba = ABAS.find((a) => a.id === abaAtiva)!;
-  const pendencias = vendas.filter((v) => v.status === 'pendente' || v.status === 'vencido').length;
+  // Conta pedidos (agrupados), não linhas de venda — bate com o que a tela de
+  // Lembretes mostra (um mesmo pedido pode ter várias linhas, uma por produto).
+  const pendencias = agruparVendasPorPedido(
+    vendas.filter((v) => v.status === 'pendente' || v.status === 'vencido'),
+  ).length;
   // O seletor de período só faz sentido nas telas que agregam faturamento por
   // mês — nas demais (cadastros, lembretes) ficaria mostrando um filtro que
   // não afeta nada na tela, o que confunde mais do que ajuda.
