@@ -3,8 +3,10 @@ import type {
   Comercio,
   Meta,
   MetaProduto,
+  MetricaMeta,
   NovaPerdaInput,
   NovaVendaInput,
+  NovaVisitaInput,
   Perda,
   Periodicidade,
   Produto,
@@ -12,6 +14,7 @@ import type {
   TipoMeta,
   Usuario,
   Venda,
+  Visita,
 } from '@/types';
 import { api } from '@/services/api';
 
@@ -30,6 +33,7 @@ interface DataState {
   comercios: Comercio[];
   vendas: Venda[];
   perdas: Perda[];
+  visitas: Visita[];
   metas: Meta[];
   metasProdutosPorMeta: Record<string, MetaProduto[]>;
   solicitacoes: SolicitacaoAcesso[];
@@ -48,7 +52,17 @@ interface DataState {
   registrarPerda: (input: NovaPerdaInput) => Promise<Perda>;
   removerPerda: (id: string) => Promise<void>;
 
-  criarMeta: (input: { nome: string; periodicidade: Periodicidade; data_inicio: string; data_fim: string }) => Promise<Meta>;
+  registrarVisita: (input: NovaVisitaInput) => Promise<Visita>;
+  removerVisita: (id: string) => Promise<void>;
+
+  criarMeta: (input: {
+    nome: string;
+    periodicidade: Periodicidade;
+    data_inicio: string;
+    data_fim: string;
+    metrica?: MetricaMeta;
+    vendedor_id?: string | null;
+  }) => Promise<Meta>;
   atualizarMeta: (id: string, valor: number) => Promise<void>;
   removerMeta: (id: string) => Promise<void>;
   definirMetaPrincipal: (id: string) => Promise<void>;
@@ -82,22 +96,24 @@ export const useDataStore = create<DataState>((set, get) => ({
   comercios: [],
   vendas: [],
   perdas: [],
+  visitas: [],
   metas: [],
   metasProdutosPorMeta: {},
   solicitacoes: [],
   carregado: false,
 
   carregarTudo: async () => {
-    const [usuarios, produtos, comercios, vendas, perdas, metas, solicitacoes] = await Promise.all([
+    const [usuarios, produtos, comercios, vendas, perdas, visitas, metas, solicitacoes] = await Promise.all([
       api.listarUsuarios(),
       api.listarProdutos(),
       api.listarComercios(),
       api.listarVendas(),
       api.listarPerdas(),
+      api.listarVisitas(),
       api.listarMetas(),
       api.listarSolicitacoes(),
     ]);
-    set({ usuarios, produtos, comercios, vendas, perdas, metas, solicitacoes, carregado: true });
+    set({ usuarios, produtos, comercios, vendas, perdas, visitas, metas, solicitacoes, carregado: true });
     // pré-carrega as metas por produto de todas as metas existentes
     await Promise.all(metas.map((m) => get().carregarMetasProdutos(m.id)));
   },
@@ -138,6 +154,17 @@ export const useDataStore = create<DataState>((set, get) => ({
   removerPerda: async (id) => {
     await api.removerPerda(id);
     set({ perdas: await api.listarPerdas() });
+  },
+
+  registrarVisita: async (input) => {
+    const visita = await api.registrarVisita(input);
+    set({ visitas: await api.listarVisitas() });
+    return visita;
+  },
+
+  removerVisita: async (id) => {
+    await api.removerVisita(id);
+    set({ visitas: await api.listarVisitas() });
   },
 
   criarMeta: async (input) => {

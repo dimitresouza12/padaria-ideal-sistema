@@ -13,8 +13,10 @@ import type {
   Comercio,
   Meta,
   MetaProduto,
+  MetricaMeta,
   NovaPerdaInput,
   NovaVendaInput,
+  NovaVisitaInput,
   Perda,
   Periodicidade,
   Produto,
@@ -23,6 +25,7 @@ import type {
   TipoMeta,
   Usuario,
   Venda,
+  Visita,
 } from '@/types';
 import { resolverPreco } from '@/lib/pricing';
 import { supabase } from './supabaseClient';
@@ -541,6 +544,31 @@ export const supabaseApi = {
     if (!count) throw new Error('Perda não encontrada');
   },
 
+  /* visitas — "passei e não vendi", registrado à parte de venda/perda. A meta
+   * de visitas soma as três fontes (ver src/lib/metas.ts). */
+  async listarVisitas(): Promise<Visita[]> {
+    return rows(await supabase.from('visitas').select('*').order('data_visita', { ascending: false }));
+  },
+  async registrarVisita(input: NovaVisitaInput): Promise<Visita> {
+    return row(
+      await supabase
+        .from('visitas')
+        .insert({
+          comercio_id: input.comercio_id,
+          vendedor_id: input.vendedor_id,
+          data_visita: input.data_visita,
+          observacao: input.observacao?.trim() || null,
+        })
+        .select('*')
+        .single(),
+    );
+  },
+  async removerVisita(id: string): Promise<void> {
+    const { error, count } = await supabase.from('visitas').delete({ count: 'exact' }).eq('id', id);
+    if (error) throw new Error(error.message);
+    if (!count) throw new Error('Visita não encontrada');
+  },
+
   /* metas */
   async listarMetas(): Promise<Meta[]> {
     return rows(await supabase.from('metas').select('*'));
@@ -550,8 +578,15 @@ export const supabaseApi = {
     periodicidade: Periodicidade;
     data_inicio: string;
     data_fim: string;
+    metrica?: MetricaMeta;
+    vendedor_id?: string | null;
   }): Promise<Meta> {
-    const { count } = await supabase.from('metas').select('id', { count: 'exact', head: true });
+    const ehFaturamento = input.metrica === undefined || input.metrica === 'faturamento';
+    // Só concorre a "principal" com as demais metas de faturamento — o KPI de
+    // destaque do Dashboard é sempre em R$.
+    const { count } = ehFaturamento
+      ? await supabase.from('metas').select('id', { count: 'exact', head: true }).eq('metrica', 'faturamento')
+      : { count: 1 };
     return row(
       await supabase
         .from('metas')
@@ -561,8 +596,10 @@ export const supabaseApi = {
           data_inicio: input.data_inicio,
           data_fim: input.data_fim,
           dimensao: 'geral',
+          metrica: input.metrica ?? 'faturamento',
+          vendedor_id: input.vendedor_id ?? null,
           valor_alvo: 0,
-          principal: (count ?? 0) === 0, // a primeira meta nasce principal
+          principal: ehFaturamento && (count ?? 0) === 0,
         })
         .select('*')
         .single(),

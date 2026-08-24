@@ -3,12 +3,13 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { useDataStore } from '@/store/useDataStore';
 import { useUiStore } from '@/store/useUiStore';
 import { Card, StatCard, ProgressBar, Tag } from '@/components/ui';
-import { fmtBRLCompact, fmtData, primeiroNome } from '@/lib/format';
+import { fmtBRLCompact, fmtData, fmtPct, primeiroNome } from '@/lib/format';
 import { diasDesde, noPeriodo, rangeDoMes, rotuloMesExtenso } from '@/lib/periodo';
+import { progressoMeta, LABEL_METRICA, metricaEmReais } from '@/lib/metas';
 
 export function DashboardVendedor() {
   const usuario = useAuthStore((s) => s.usuario)!;
-  const { vendas, comercios, produtos } = useDataStore();
+  const { vendas, perdas, visitas, metas, comercios, produtos } = useDataStore();
   const periodoMes = useUiStore((s) => s.periodoMes);
   const periodo = useMemo(() => rangeDoMes(periodoMes), [periodoMes]);
 
@@ -56,6 +57,13 @@ export function DashboardVendedor() {
     [comercios, vendas, usuario.id],
   );
 
+  // Metas novas (visitas/novos clientes/ticket médio) são sempre individuais
+  // — cada vendedor só vê as suas.
+  const minhasMetas = useMemo(
+    () => metas.filter((m) => m.vendedor_id === usuario.id),
+    [metas, usuario.id],
+  );
+
   return (
     <div className="flex flex-col gap-5">
       <Card className="p-6">
@@ -98,6 +106,32 @@ export function DashboardVendedor() {
           </span>
         </div>
       </Card>
+
+      {minhasMetas.map((meta) => {
+        const { atingido, pct: pctMeta } = progressoMeta(meta, { vendas, visitas, perdas, comercios });
+        const emReais = metricaEmReais(meta.metrica);
+        const fmtValor = (v: number) => (emReais ? fmtBRLCompact(v) : String(Math.round(v)));
+        const acimaMeta = pctMeta >= 100;
+        return (
+          <Card key={meta.id} className="p-5">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm font-bold">{meta.nome} <span className="font-normal text-ink-muted">· {LABEL_METRICA[meta.metrica]}</span></div>
+              <Tag tone={acimaMeta ? 'good' : 'bad'}>{fmtPct(pctMeta)}</Tag>
+            </div>
+            {meta.valor_alvo > 0 ? (
+              <>
+                <ProgressBar pct={pctMeta} tone={acimaMeta ? 'good' : 'accent'} />
+                <div className="mt-2 flex justify-between text-[11.5px] text-ink-muted">
+                  <span>{fmtValor(atingido)} de {fmtValor(meta.valor_alvo)}</span>
+                  <span>{acimaMeta ? 'Meta atingida' : `Faltam ${fmtValor(meta.valor_alvo - atingido)}`}</span>
+                </div>
+              </>
+            ) : (
+              <div className="text-xs text-ink-muted">Sem valor-alvo definido ainda.</div>
+            )}
+          </Card>
+        );
+      })}
 
       {minhaCarteira.length > 0 && (
         <Card className="p-5">

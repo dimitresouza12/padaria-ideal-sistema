@@ -55,7 +55,7 @@ atenção); insight "O que preocupa" somou a frase automaticamente; tela de Clie
 Compre Bem — 30 dias sem comprar" calculado só a partir das vendas dela (uma venda de outro
 vendedor ao mesmo cliente não "resetou" a contagem). Build limpo.
 
-## 3. Metas de visitas / novos clientes / ticket médio + registro de visita — ⏳ PENDENTE
+## 3. Metas de visitas / novos clientes / ticket médio + registro de visita — ✅ CORRIGIDO E TESTADO
 
 > "a meta que tu colocou lá é sobre faturamento (...) meta de visitas, de novos clientes e de
 > ticket médio. Eu queria criar essas metas para os meus vendedores."
@@ -64,22 +64,41 @@ Escopo confirmado com o cliente (áudio 24/08): as metas novas nascem **por vend
 início — "prefiro esperar mais, sempre que seja individual, para vendedor". Recusou
 explicitamente a alternativa de entregar primeiro uma versão "geral" mais rápida.
 
-Proposta (não implementada ainda):
-- Nova entidade `Visita` (mesmo padrão de `Perda`: tabela, RLS, CRUD, formulário mínimo +
-  botão "Passei e não vendi" em `Vendas.tsx`). Sem escrita automática em venda/perda — a meta
-  de visitas soma vendas+perdas+visitas por `comercio_id+data`, deduplicado, na hora do cálculo.
-- `Meta` ganha `metrica` (`faturamento`/`visitas`/`novos_clientes`/`ticket_medio`, default
-  `faturamento`) e `vendedor_id` (nullable — `null` continua sendo meta geral, só usado por
-  faturamento; as 3 métricas novas sempre têm vendedor).
+Implementado:
+- Tabela `visitas` nova no Supabase (RLS espelhando `perdas`: vendedor lê/escreve as próprias,
+  admin tudo) + tipo `Visita`/`NovaVisitaInput`, CRUD nos dois services, formulário mínimo
+  (`RegistrarVisita.tsx`) e botão "Passei e não vendi" ao lado de "+ Registrar Venda" em
+  `Vendas.tsx`. Sem escrita automática em venda/perda — a meta de visitas soma
+  vendas+perdas+visitas por `comercio_id+data`, deduplicado, na hora do cálculo (uma venda e
+  uma perda ao mesmo cliente no mesmo dia não contam como 2 visitas).
+- `Meta` ganhou `metrica` (`faturamento`/`visitas`/`novos_clientes`/`ticket_medio`, migração
+  com `DEFAULT 'faturamento'` — metas existentes preservadas) e `vendedor_id` (nullable —
+  `null` continua sendo meta geral, só usado por faturamento; as 3 métricas novas são sempre
+  individuais, exigem vendedor no formulário).
 - `src/lib/metas.ts` novo — centraliza o cálculo de progresso (hoje duplicado em 5 lugares),
-  corrigindo de quebra um bug já confirmado: progresso por produto/vendedor não filtra pela
+  corrigindo de quebra um bug já confirmado: progresso por produto/vendedor não filtrava pela
   janela da meta.
+- `Metas.tsx`: formulário ganhou select de métrica + select de vendedor (quando a métrica não é
+  faturamento); "Tornar principal" só aparece para metas de faturamento (o KPI de destaque do
+  Dashboard é sempre em R$).
+- `DashboardVendedor.tsx`: cada vendedor vê, além da meta de faturamento individual já
+  existente, um card por meta nova atribuída a ele.
+
+Testado ao vivo (mock local): criada "Meta de Visitas — Ana" (mensal, alvo 3) — progresso
+calculou 6 visitas (a partir do histórico de vendas/perdas de julho), 200% de imediato; uma
+venda de outro vendedor ao mesmo cliente não contou; registrado "Passei e não vendi" pela Ana
+para um cliente/data novos → progresso subiu para 7/3 (233%) no Dashboard dela em tempo real;
+card some do Dashboard de outros vendedores (é individual). Migração aplicada em produção
+(Supabase `audtpilnovrzwszeubkz`); `get_advisors` (security) reexecutado, sem novos alertas.
+Build limpo.
 
 ## Ordem de execução
 
 1. Lembretes agrupados + Ticket Médio — ✅ feito.
 2. Recompra — ✅ feito.
-3. Visitas + metas por métrica — próximo, maior escopo, única com migração de schema nova.
+3. Visitas + metas por métrica — ✅ feito.
+
+Rodada 3 completa.
 
 ---
 

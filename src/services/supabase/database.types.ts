@@ -105,32 +105,46 @@ export type Database = {
           data_inicio: string
           dimensao: Database["public"]["Enums"]["tipo_meta"]
           id: string
+          metrica: Database["public"]["Enums"]["metrica_meta"]
           nome: string
           periodicidade: Database["public"]["Enums"]["periodicidade"]
           principal: boolean
           valor_alvo: number
+          vendedor_id: string | null
         }
         Insert: {
           data_fim: string
           data_inicio: string
           dimensao?: Database["public"]["Enums"]["tipo_meta"]
           id?: string
+          metrica?: Database["public"]["Enums"]["metrica_meta"]
           nome: string
           periodicidade: Database["public"]["Enums"]["periodicidade"]
           principal?: boolean
           valor_alvo?: number
+          vendedor_id?: string | null
         }
         Update: {
           data_fim?: string
           data_inicio?: string
           dimensao?: Database["public"]["Enums"]["tipo_meta"]
           id?: string
+          metrica?: Database["public"]["Enums"]["metrica_meta"]
           nome?: string
           periodicidade?: Database["public"]["Enums"]["periodicidade"]
           principal?: boolean
           valor_alvo?: number
+          vendedor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "metas_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       metas_produtos: {
         Row: {
@@ -413,6 +427,48 @@ export type Database = {
           },
         ]
       }
+      visitas: {
+        Row: {
+          comercio_id: string
+          criado_em: string
+          data_visita: string
+          id: string
+          observacao: string | null
+          vendedor_id: string
+        }
+        Insert: {
+          comercio_id: string
+          criado_em?: string
+          data_visita: string
+          id?: string
+          observacao?: string | null
+          vendedor_id: string
+        }
+        Update: {
+          comercio_id?: string
+          criado_em?: string
+          data_visita?: string
+          id?: string
+          observacao?: string | null
+          vendedor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitas_comercio_id_fkey"
+            columns: ["comercio_id"]
+            isOneToOne: false
+            referencedRelation: "comercios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitas_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -522,6 +578,11 @@ export type Database = {
     }
     Enums: {
       forma_pagamento: "a_vista" | "a_prazo"
+      metrica_meta:
+        | "faturamento"
+        | "visitas"
+        | "novos_clientes"
+        | "ticket_medio"
       modo_preco: "atacado" | "varejo"
       perfil: "admin" | "vendedor"
       periodicidade: "semanal" | "mensal" | "trimestral" | "personalizado"
@@ -656,6 +717,12 @@ export const Constants = {
   public: {
     Enums: {
       forma_pagamento: ["a_vista", "a_prazo"],
+      metrica_meta: [
+        "faturamento",
+        "visitas",
+        "novos_clientes",
+        "ticket_medio",
+      ],
       modo_preco: ["atacado", "varejo"],
       perfil: ["admin", "vendedor"],
       periodicidade: ["semanal", "mensal", "trimestral", "personalizado"],

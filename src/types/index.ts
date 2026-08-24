@@ -120,6 +120,30 @@ export interface NovaPerdaInput {
 }
 
 /**
+ * Visita registrada sem venda ("passei e não vendi") — conta para a meta de
+ * visitas junto com dias em que houve venda ou perda ao mesmo cliente (a meta
+ * de visitas soma as três fontes por comercio_id+data, deduplicado; ver
+ * src/lib/metas.ts). Não é criada automaticamente ao vender/perder — só
+ * registra o caso "sem venda", que é a lacuna que as outras duas fontes não
+ * cobrem sozinhas.
+ */
+export interface Visita {
+  id: string;
+  comercio_id: string;
+  vendedor_id: string;
+  data_visita: string; // ISO date (YYYY-MM-DD)
+  observacao: string | null;
+  criado_em: string;
+}
+
+export interface NovaVisitaInput {
+  comercio_id: string;
+  vendedor_id: string;
+  data_visita: string;
+  observacao?: string;
+}
+
+/**
  * Dimensão escolhida pelo gestor para compor uma Meta:
  *   'geral'        -> um valor único, definido diretamente.
  *   'por_produto'  -> a soma das metas individuais de `MetaProduto` (ver abaixo).
@@ -139,6 +163,13 @@ export type TipoMeta = 'geral' | 'por_produto' | 'por_vendedor';
  */
 export type Periodicidade = 'semanal' | 'mensal' | 'trimestral' | 'personalizado';
 
+/**
+ * Métrica que a meta mede. `faturamento` é a original (única até a Rodada 3) —
+ * `dimensao` (geral/por_produto/por_vendedor) só se aplica a ela. As 3 métricas
+ * novas nascem sempre atreladas a um vendedor (`vendedor_id` preenchido).
+ */
+export type MetricaMeta = 'faturamento' | 'visitas' | 'novos_clientes' | 'ticket_medio';
+
 export interface Meta {
   id: string;
   nome: string; // rótulo livre, ex.: "Meta de Julho", "Meta da semana"
@@ -146,6 +177,9 @@ export interface Meta {
   data_inicio: string; // YYYY-MM-DD, inclusive
   data_fim: string; // YYYY-MM-DD, inclusive
   dimensao: TipoMeta;
+  metrica: MetricaMeta;
+  /** Vendedor dono da meta — null = meta geral da empresa (só faz sentido para faturamento). */
+  vendedor_id: string | null;
   valor_alvo: number;
   /** Só uma meta é principal por vez — é ela que alimenta o KPI de destaque do Dashboard. */
   principal: boolean;

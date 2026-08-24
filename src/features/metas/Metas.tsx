@@ -5,14 +5,22 @@ import { Card, Button, Modal, ConfirmModal, Tag, ProgressBar, SectionLabel, Empt
 import { IconEditar, IconLixeira } from '@/components/icons';
 import { fmtBRLCompact, fmtData, fmtPct } from '@/lib/format';
 import { rangeParaPeriodicidade, LABEL_PERIODICIDADE } from '@/lib/periodo';
+import { progressoMeta, LABEL_METRICA, metricaEmReais } from '@/lib/metas';
 import { HOJE } from '@/services/mock/mockData';
-import type { Meta, MetaProduto, Periodicidade, Produto, TipoMeta, Usuario, Venda } from '@/types';
+import type { Comercio, Meta, MetaProduto, MetricaMeta, Perda, Periodicidade, Produto, TipoMeta, Usuario, Venda, Visita } from '@/types';
+
+const fmtValorRotulo = (metrica: MetricaMeta): string =>
+  metrica === 'ticket_medio' ? 'Ticket médio alvo (R$)'
+    : metrica === 'visitas' ? 'Meta de visitas (nº)'
+    : 'Meta de novos clientes (nº)';
 
 export function Metas() {
-  const { metas, vendas, produtos, usuarios, metasProdutosPorMeta } = useDataStore();
+  const { metas, vendas, perdas, visitas, comercios, produtos, usuarios, metasProdutosPorMeta } = useDataStore();
   const [aberto, setAberto] = useState(false);
 
   const ordenadas = [...metas].sort((a, b) => (b.principal ? 1 : 0) - (a.principal ? 1 : 0));
+  const vendedoresAtivos = usuarios.filter((u) => u.perfil === 'vendedor' && u.ativo);
+  const nomeVendedor = (id: string | null) => (id ? usuarios.find((u) => u.id === id)?.nome ?? '—' : null);
 
   return (
     <div className="flex flex-col gap-5">
@@ -30,8 +38,12 @@ export function Metas() {
               key={meta.id}
               meta={meta}
               vendas={vendas}
+              perdas={perdas}
+              visitas={visitas}
+              comercios={comercios}
               produtos={produtos.filter((p) => p.ativo)}
-              vendedores={usuarios.filter((u) => u.perfil === 'vendedor' && u.ativo)}
+              vendedores={vendedoresAtivos}
+              nomeVendedor={nomeVendedor(meta.vendedor_id)}
               metasProdutos={metasProdutosPorMeta[meta.id] ?? []}
             />
           ))}
@@ -48,9 +60,12 @@ export function Metas() {
 function NovaMetaForm({ onFechar }: { onFechar: () => void }) {
   const criarMeta = useDataStore((s) => s.criarMeta);
   const atualizarMeta = useDataStore((s) => s.atualizarMeta);
+  const vendedoresAtivos = useDataStore((s) => s.usuarios.filter((u) => u.perfil === 'vendedor' && u.ativo));
   const notificar = useToastStore((s) => s.notificar);
 
   const [nome, setNome] = useState('');
+  const [metrica, setMetrica] = useState<MetricaMeta>('faturamento');
+  const [vendedorId, setVendedorId] = useState(vendedoresAtivos[0]?.id ?? '');
   const [periodicidade, setPeriodicidade] = useState<Periodicidade>('semanal');
   const [valorAlvo, setValorAlvo] = useState('');
   const [dataInicioManual, setDataInicioManual] = useState(HOJE);
@@ -59,9 +74,11 @@ function NovaMetaForm({ onFechar }: { onFechar: () => void }) {
   // Ref, não state: evita duplo clique síncrono barrando na mesma closure.
   const salvandoRef = useRef(false);
 
+  const precisaVendedor = metrica !== 'faturamento';
+
   const onCriar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (salvandoRef.current) return;
+    if (salvandoRef.current || (precisaVendedor && !vendedorId)) return;
     salvandoRef.current = true;
     setSalvando(true);
     try {
@@ -69,7 +86,13 @@ function NovaMetaForm({ onFechar }: { onFechar: () => void }) {
         periodicidade === 'personalizado'
           ? { data_inicio: dataInicioManual, data_fim: dataFimManual }
           : rangeParaPeriodicidade(periodicidade, HOJE);
-      const nova = await criarMeta({ nome: nome.trim(), periodicidade, ...range });
+      const nova = await criarMeta({
+        nome: nome.trim(),
+        periodicidade,
+        ...range,
+        metrica,
+        vendedor_id: precisaVendedor ? vendedorId : null,
+      });
       const valor = Number(valorAlvo) || 0;
       if (valor > 0) await atualizarMeta(nova.id, valor);
       notificar('Meta criada.');
@@ -84,19 +107,48 @@ function NovaMetaForm({ onFechar }: { onFechar: () => void }) {
 
   return (
     <form onSubmit={onCriar} className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="sm:col-span-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
           <label className="field-label">Nome da meta</label>
           <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Meta da semana" required />
         </div>
         <div>
-          <label className="field-label">Periodicidade</label>
-          <select className="field" value={periodicidade} onChange={(e) => setPeriodicidade(e.target.value as Periodicidade)}>
-            {(['semanal', 'mensal', 'trimestral', 'personalizado'] as const).map((p) => (
-              <option key={p} value={p}>{LABEL_PERIODICIDADE[p]}</option>
+          <label className="field-label">Métrica</label>
+          <select className="field" value={metrica} onChange={(e) => setMetrica(e.target.value as MetricaMeta)}>
+            {(['faturamento', 'visitas', 'novos_clientes', 'ticket_medio'] as const).map((m) => (
+              <option key={m} value={m}>{LABEL_METRICA[m]}</option>
             ))}
           </select>
         </div>
+      </div>
+
+      {precisaVendedor && (
+        vendedoresAtivos.length === 0 ? (
+          <div className="text-[11.5px] text-ink-muted">
+            Nenhum vendedor ativo cadastrado — cadastre a equipe em Configurações → Equipe.
+          </div>
+        ) : (
+          <div>
+            <label className="field-label">Vendedor</label>
+            <select className="field" value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}>
+              {vendedoresAtivos.map((v) => (
+                <option key={v.id} value={v.id}>{v.nome}</option>
+              ))}
+            </select>
+            <div className="mt-1.5 text-[11px] text-ink-muted">
+              Metas de visitas, novos clientes e ticket médio são sempre individuais.
+            </div>
+          </div>
+        )
+      )}
+
+      <div>
+        <label className="field-label">Periodicidade</label>
+        <select className="field" value={periodicidade} onChange={(e) => setPeriodicidade(e.target.value as Periodicidade)}>
+          {(['semanal', 'mensal', 'trimestral', 'personalizado'] as const).map((p) => (
+            <option key={p} value={p}>{LABEL_PERIODICIDADE[p]}</option>
+          ))}
+        </select>
       </div>
 
       {periodicidade === 'personalizado' ? (
@@ -120,13 +172,25 @@ function NovaMetaForm({ onFechar }: { onFechar: () => void }) {
       )}
 
       <div>
-        <label className="field-label">Meta de faturamento (R$)</label>
-        <input type="number" className="field sm:w-44" min={0} step={100} value={valorAlvo} onChange={(e) => setValorAlvo(e.target.value)} />
+        <label className="field-label">
+          {metrica === 'faturamento' ? 'Meta de faturamento (R$)'
+            : metrica === 'ticket_medio' ? 'Ticket médio alvo (R$)'
+            : metrica === 'visitas' ? 'Meta de visitas (nº)'
+            : 'Meta de novos clientes (nº)'}
+        </label>
+        <input
+          type="number"
+          className="field sm:w-44"
+          min={0}
+          step={metricaEmReais(metrica) ? 100 : 1}
+          value={valorAlvo}
+          onChange={(e) => setValorAlvo(e.target.value)}
+        />
       </div>
 
       <div className="flex justify-end gap-2 border-t border-line pt-4">
         <Button type="button" variant="ghost" onClick={onFechar}>Cancelar</Button>
-        <Button type="submit" disabled={salvando}>{salvando ? 'Salvando…' : 'Criar Meta'}</Button>
+        <Button type="submit" disabled={salvando || (precisaVendedor && !vendedorId)}>{salvando ? 'Salvando…' : 'Criar Meta'}</Button>
       </div>
     </form>
   );
@@ -135,14 +199,22 @@ function NovaMetaForm({ onFechar }: { onFechar: () => void }) {
 function MetaCard({
   meta,
   vendas,
+  perdas,
+  visitas,
+  comercios,
   produtos,
   vendedores,
+  nomeVendedor,
   metasProdutos,
 }: {
   meta: Meta;
   vendas: Venda[];
+  perdas: Perda[];
+  visitas: Visita[];
+  comercios: Comercio[];
   produtos: Produto[];
   vendedores: Usuario[];
+  nomeVendedor: string | null;
   metasProdutos: MetaProduto[];
 }) {
   const atualizarMeta = useDataStore((s) => s.atualizarMeta);
@@ -161,11 +233,12 @@ function MetaCard({
   const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
   const [removendo, setRemovendo] = useState(false);
 
-  const vendido = useMemo(
-    () => vendas.filter((v) => v.data_venda >= meta.data_inicio && v.data_venda <= meta.data_fim).reduce((a, v) => a + v.valor_total, 0),
-    [vendas, meta.data_inicio, meta.data_fim],
+  const { atingido, pct } = useMemo(
+    () => progressoMeta(meta, { vendas, visitas, perdas, comercios }),
+    [meta, vendas, visitas, perdas, comercios],
   );
-  const pct = meta.valor_alvo ? (vendido / meta.valor_alvo) * 100 : 0;
+  const emReais = metricaEmReais(meta.metrica);
+  const fmtValor = (v: number) => (emReais ? fmtBRLCompact(v) : String(Math.round(v)));
 
   const salvarValor = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,15 +260,17 @@ function MetaCard({
     <Card className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-[13.5px] font-bold">{meta.nome}</span>
             {meta.principal && <Tag tone="accent">Principal</Tag>}
             <Tag tone="neutral">{LABEL_PERIODICIDADE[meta.periodicidade]}</Tag>
+            {meta.metrica !== 'faturamento' && <Tag tone="accent">{LABEL_METRICA[meta.metrica]}</Tag>}
+            {nomeVendedor && <Tag tone="neutral">{nomeVendedor}</Tag>}
           </div>
           <div className="mt-0.5 text-xs text-ink-muted">{fmtData(meta.data_inicio)} a {fmtData(meta.data_fim)}</div>
         </div>
         <div className="flex items-center gap-2">
-          {!meta.principal && (
+          {!meta.principal && meta.metrica === 'faturamento' && (
             <Button variant="secondary" size="sm" onClick={() => void definirMetaPrincipal(meta.id)}>
               Tornar principal
             </Button>
@@ -232,20 +307,39 @@ function MetaCard({
         <div className="mt-4 border-t border-line pt-4">
           <ProgressBar pct={pct} tone={pct >= 100 ? 'good' : 'accent'} />
           <div className="mt-1.5 flex justify-between text-[11.5px] text-ink-muted">
-            <span>{fmtBRLCompact(vendido)} de {fmtBRLCompact(meta.valor_alvo)}</span>
+            <span>{fmtValor(atingido)} de {fmtValor(meta.valor_alvo)}</span>
             <span>{fmtPct(pct)}</span>
           </div>
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setEditandoDimensao(true)}
-        className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft transition hover:bg-plane hover:text-ink"
-      >
-        <IconEditar size={12} />
-        {meta.dimensao === 'geral' ? 'Valor Geral' : meta.dimensao === 'por_produto' ? 'Soma por Produto' : 'Individual por Vendedor'}
-      </button>
+      {meta.metrica === 'faturamento' ? (
+        <button
+          type="button"
+          onClick={() => setEditandoDimensao(true)}
+          className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-[12.5px] font-semibold text-ink-soft transition hover:bg-plane hover:text-ink"
+        >
+          <IconEditar size={12} />
+          {meta.dimensao === 'geral' ? 'Valor Geral' : meta.dimensao === 'por_produto' ? 'Soma por Produto' : 'Individual por Vendedor'}
+        </button>
+      ) : (
+        <form onSubmit={salvarValor} className="mt-4 flex flex-wrap items-end gap-3 border-t border-line pt-4">
+          <div className="flex-1 sm:flex-none">
+            <label className="field-label">{fmtValorRotulo(meta.metrica)}</label>
+            <input
+              type="number"
+              className="field sm:w-40"
+              value={valorInput}
+              min={0}
+              step={emReais ? 100 : 1}
+              onChange={(e) => setValorInput(e.target.value)}
+            />
+          </div>
+          <Button type="submit" size="sm" disabled={salvandoValor}>
+            {salvandoValor ? 'Salvando…' : 'Atualizar Valor'}
+          </Button>
+        </form>
+      )}
 
       <Modal aberto={editandoDimensao} titulo={`Como definir "${meta.nome}"`} onFechar={() => setEditandoDimensao(false)}>
         <div className="mb-4 grid grid-cols-3 gap-0.5 rounded-lg border border-line bg-plane p-0.5">

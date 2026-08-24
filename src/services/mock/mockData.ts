@@ -18,8 +18,10 @@ import type {
   Comercio,
   Meta,
   MetaProduto,
+  MetricaMeta,
   NovaPerdaInput,
   NovaVendaInput,
+  NovaVisitaInput,
   Perda,
   Periodicidade,
   Produto,
@@ -28,6 +30,7 @@ import type {
   TipoMeta,
   Usuario,
   Venda,
+  Visita,
 } from '@/types';
 import { resolverPreco } from '@/lib/pricing';
 import { primeiroNome } from '@/lib/format';
@@ -122,6 +125,8 @@ const METAS_SEED: Meta[] = [
     data_inicio: '2026-07-01',
     data_fim: '2026-07-31',
     dimensao: 'geral',
+    metrica: 'faturamento',
+    vendedor_id: null,
     valor_alvo: 140000,
     principal: true,
   },
@@ -261,6 +266,7 @@ interface DBShape {
   comercios: Comercio[];
   vendas: Venda[];
   perdas: Perda[];
+  visitas: Visita[];
   metas: Meta[];
   metasProdutos: MetaProduto[];
   solicitacoes: SolicitacaoAcesso[];
@@ -274,6 +280,7 @@ function seed(): DBShape {
     comercios: structuredClone(COMERCIOS_SEED),
     vendas: VENDA_SPECS.map(buildVenda),
     perdas: PERDA_SPECS.map(buildPerda),
+    visitas: [],
     metas: structuredClone(METAS_SEED),
     metasProdutos: structuredClone(METAS_PRODUTO_SEED),
     solicitacoes: structuredClone(SOLICITACOES_SEED),
@@ -700,6 +707,33 @@ export const mockApi = {
     return delay(undefined);
   },
 
+  /* visitas — "passei e não vendi", registrado à parte de venda/perda. A meta
+   * de visitas soma as três fontes (ver src/lib/metas.ts), então esta tabela
+   * só existe para cobrir o caso que venda/perda não registram sozinhas. */
+  async listarVisitas(): Promise<Visita[]> {
+    return delay([...db.visitas].sort((a, b) => b.data_visita.localeCompare(a.data_visita)));
+  },
+  async registrarVisita(input: NovaVisitaInput): Promise<Visita> {
+    const visita: Visita = {
+      id: uid('vi'),
+      comercio_id: input.comercio_id,
+      vendedor_id: input.vendedor_id,
+      data_visita: input.data_visita,
+      observacao: input.observacao?.trim() || null,
+      criado_em: new Date().toISOString(),
+    };
+    db.visitas.push(visita);
+    persist();
+    return delay(visita);
+  },
+  async removerVisita(id: string): Promise<void> {
+    const existe = db.visitas.some((v) => v.id === id);
+    if (!existe) throw new Error('Visita não encontrada');
+    db.visitas = db.visitas.filter((v) => v.id !== id);
+    persist();
+    return delay(undefined);
+  },
+
   /* metas — o gestor pode ter várias simultâneas (mensal, semanal...). Só uma
    * é `principal` por vez; é ela que alimenta o KPI de destaque do Dashboard.
    * Em cada uma, a dimensão (geral ou por produto) decide como valor_alvo é
@@ -712,6 +746,8 @@ export const mockApi = {
     periodicidade: Periodicidade;
     data_inicio: string;
     data_fim: string;
+    metrica?: MetricaMeta;
+    vendedor_id?: string | null;
   }): Promise<Meta> {
     const meta: Meta = {
       id: uid('meta'),
@@ -720,8 +756,15 @@ export const mockApi = {
       data_inicio: input.data_inicio,
       data_fim: input.data_fim,
       dimensao: 'geral',
+      metrica: input.metrica ?? 'faturamento',
+      vendedor_id: input.vendedor_id ?? null,
       valor_alvo: 0,
-      principal: db.metas.length === 0, // a primeira meta criada nasce principal
+      // Só concorre a "principal" com as demais metas de faturamento — uma
+      // meta de visitas/novos clientes/ticket médio não faz sentido alimentar
+      // o KPI de destaque do Dashboard, que é sempre em R$.
+      principal: input.metrica === undefined || input.metrica === 'faturamento'
+        ? db.metas.filter((m) => m.metrica === 'faturamento').length === 0
+        : false,
     };
     db.metas.push(meta);
     persist();
