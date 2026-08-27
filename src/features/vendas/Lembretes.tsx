@@ -10,9 +10,11 @@ export function Lembretes() {
   const usuario = useAuthStore((s) => s.usuario)!;
   const { vendas, comercios, usuarios, produtos } = useDataStore();
   const darBaixaEmLote = useDataStore((s) => s.darBaixaEmLote);
+  const marcarEntregue = useDataStore((s) => s.marcarEntregue);
   const notificar = useToastStore((s) => s.notificar);
   const [expandido, setExpandido] = useState<string | null>(null);
   const [baixando, setBaixando] = useState<string | null>(null);
+  const [entregando, setEntregando] = useState<string | null>(null);
 
   const lista = useMemo(() => {
     return vendas
@@ -42,6 +44,18 @@ export function Lembretes() {
       notificar('Não foi possível confirmar o pagamento. Verifique sua conexão e tente novamente.', 'bad');
     } finally {
       setBaixando(null);
+    }
+  };
+
+  const onMarcarEntregue = async (grupo: GrupoPedido) => {
+    setEntregando(grupo.chave);
+    try {
+      await marcarEntregue(grupo.itens.map((v) => v.id));
+      notificar('Pedido marcado como entregue.');
+    } catch {
+      notificar('Não foi possível marcar como entregue. Verifique sua conexão e tente novamente.', 'bad');
+    } finally {
+      setEntregando(null);
     }
   };
 
@@ -103,12 +117,37 @@ export function Lembretes() {
                         <td className="px-5 py-3 font-semibold tabular-nums">{fmtBRL(g.valor_total)}</td>
                         <td className="px-5 py-3 tabular-nums">{fmtData(g.data_vencimento)}</td>
                         <td className="px-5 py-3">
-                          {g.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
+                          <div className="flex flex-col items-start gap-1">
+                            {g.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
+                            {g.entregue ? <Tag tone="good">Entregue</Tag> : <Tag tone="neutral">Não entregue</Tag>}
+                          </div>
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <Button variant="good" size="sm" disabled={baixando === g.chave} onClick={() => void onDarBaixa(g)}>
-                            {baixando === g.chave ? 'Confirmando…' : 'Dar Baixa'}
-                          </Button>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <div className="flex gap-2">
+                              {!g.entregue && (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  disabled={entregando === g.chave}
+                                  onClick={() => void onMarcarEntregue(g)}
+                                >
+                                  {entregando === g.chave ? 'Marcando…' : 'Marcar Entregue'}
+                                </Button>
+                              )}
+                              <Button
+                                variant="good"
+                                size="sm"
+                                disabled={!g.entregue || baixando === g.chave}
+                                onClick={() => void onDarBaixa(g)}
+                              >
+                                {baixando === g.chave ? 'Confirmando…' : 'Dar Baixa'}
+                              </Button>
+                            </div>
+                            {!g.entregue && (
+                              <span className="text-[11px] text-ink-muted">Marque como entregue para liberar</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                       {expandido === g.chave && g.itens.length > 1 && (
@@ -141,7 +180,10 @@ export function Lembretes() {
                     <div className="text-[13.5px] font-semibold">{nomeComercio(g.comercio_id)}</div>
                     <div className="text-xs text-ink-muted">{nomeVendedor(g.vendedor_id)}</div>
                   </div>
-                  {g.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
+                  <div className="flex flex-col items-end gap-1">
+                    {g.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
+                    {g.entregue ? <Tag tone="good">Entregue</Tag> : <Tag tone="neutral">Não entregue</Tag>}
+                  </div>
                 </div>
                 <div className="mt-2 text-xs text-ink-muted">
                   {g.itens.length === 1 ? (
@@ -170,15 +212,29 @@ export function Lembretes() {
                   <span className="tabular-nums text-ink-muted">Vence {fmtData(g.data_vencimento)}</span>
                   <span className="font-bold tabular-nums">{fmtBRL(g.valor_total)}</span>
                 </div>
+                {!g.entregue && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mt-3 w-full"
+                    disabled={entregando === g.chave}
+                    onClick={() => void onMarcarEntregue(g)}
+                  >
+                    {entregando === g.chave ? 'Marcando…' : 'Marcar Entregue'}
+                  </Button>
+                )}
                 <Button
                   variant="good"
                   size="sm"
-                  className="mt-3 w-full"
-                  disabled={baixando === g.chave}
+                  className="mt-2 w-full"
+                  disabled={!g.entregue || baixando === g.chave}
                   onClick={() => void onDarBaixa(g)}
                 >
                   {baixando === g.chave ? 'Confirmando…' : 'Dar Baixa'}
                 </Button>
+                {!g.entregue && (
+                  <div className="mt-1.5 text-center text-[11px] text-ink-muted">Marque como entregue para liberar</div>
+                )}
               </Card>
             ))}
           </div>

@@ -378,6 +378,7 @@ export const supabaseApi = {
           data_venda,
           data_vencimento,
           status: input.forma_pagamento === 'a_prazo' ? 'pendente' : 'pago',
+          entregue: input.forma_pagamento !== 'a_prazo',
         })
         .select('*')
         .single(),
@@ -442,6 +443,7 @@ export const supabaseApi = {
           data_venda,
           data_vencimento,
           status,
+          entregue: input.forma_pagamento !== 'a_prazo' ? true : vendaAtual.entregue,
         })
         .eq('id', vendaId)
         .select('*')
@@ -474,6 +476,15 @@ export const supabaseApi = {
     const { data, error } = await supabase
       .from('vendas')
       .update({ status: 'pago' })
+      .in('id', vendaIds)
+      .select('id');
+    if (error) throw new Error(error.message);
+    if (!data || data.length !== vendaIds.length) throw new Error('Venda não encontrada');
+  },
+  async marcarEntregueEmLote(vendaIds: string[]): Promise<void> {
+    const { data, error } = await supabase
+      .from('vendas')
+      .update({ entregue: true })
       .in('id', vendaIds)
       .select('id');
     if (error) throw new Error(error.message);

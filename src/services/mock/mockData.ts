@@ -253,6 +253,7 @@ function buildVenda(spec: VendaSpec): Venda {
     data_venda,
     data_vencimento,
     status,
+    entregue: spec.forma_pagamento !== 'a_prazo',
     criado_em: new Date(data_venda).toISOString(),
   };
 }
@@ -576,6 +577,7 @@ export const mockApi = {
       data_venda,
       data_vencimento,
       status,
+      entregue: input.forma_pagamento !== 'a_prazo',
       criado_em: new Date().toISOString(),
     };
     db.vendas.push(venda);
@@ -631,6 +633,7 @@ export const mockApi = {
       data_venda,
       data_vencimento,
       status,
+      entregue: input.forma_pagamento !== 'a_prazo' ? true : venda.entregue,
     });
     persist();
     return delay({ ...venda });
@@ -654,6 +657,14 @@ export const mockApi = {
     const encontradas = db.vendas.filter((v) => idsSet.has(v.id));
     if (encontradas.length !== vendaIds.length) throw new Error('Venda não encontrada');
     encontradas.forEach((v) => { v.status = 'pago'; });
+    persist();
+    return delay(undefined);
+  },
+  async marcarEntregueEmLote(vendaIds: string[]): Promise<void> {
+    const idsSet = new Set(vendaIds);
+    const encontradas = db.vendas.filter((v) => idsSet.has(v.id));
+    if (encontradas.length !== vendaIds.length) throw new Error('Venda não encontrada');
+    encontradas.forEach((v) => { v.entregue = true; });
     persist();
     return delay(undefined);
   },

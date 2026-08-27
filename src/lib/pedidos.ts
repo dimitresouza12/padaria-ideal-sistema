@@ -16,6 +16,8 @@ export interface GrupoPedido {
   valor_total: number;
   /** Todos os itens de um grupo compartilham data_vencimento, logo já compartilham status. */
   status: Venda['status'];
+  /** true só quando todo item do pedido já foi marcado como entregue. */
+  entregue: boolean;
 }
 
 const chaveDoGrupo = (v: Venda): string =>
@@ -29,6 +31,7 @@ export function agruparVendasPorPedido(vendas: Venda[]): GrupoPedido[] {
     if (existente) {
       existente.itens.push(v);
       existente.valor_total += v.valor_total;
+      existente.entregue = existente.entregue && v.entregue;
     } else {
       grupos.set(chave, {
         chave,
@@ -39,6 +42,7 @@ export function agruparVendasPorPedido(vendas: Venda[]): GrupoPedido[] {
         itens: [v],
         valor_total: v.valor_total,
         status: v.status,
+        entregue: v.entregue,
       });
     }
   }

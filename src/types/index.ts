@@ -69,6 +69,8 @@ export interface Venda {
   data_venda: string; // ISO date (YYYY-MM-DD)
   data_vencimento: string | null;
   status: StatusVenda;
+  /** Independente de `status` (pagamento) — o comércio já recebeu a mercadoria? */
+  entregue: boolean;
   criado_em: string;
 }
 
