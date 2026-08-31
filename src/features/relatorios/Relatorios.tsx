@@ -3,6 +3,7 @@ import { Card } from '@/components/ui';
 import { IconDownload } from '@/components/icons';
 import { baixarXLSX } from '@/lib/xlsx';
 import { fmtData } from '@/lib/format';
+import { agruparVendasPorPedido } from '@/lib/pedidos';
 
 export function Relatorios() {
   const { vendas, usuarios, comercios, produtos } = useDataStore();
@@ -65,7 +66,7 @@ export function Relatorios() {
         const margem = margemConhecida ? vendasDoVendedor.reduce((a, x) => a + (x.margem ?? 0), 0) : null;
         return {
           vendedor: v.nome,
-          pedidos: vendasDoVendedor.length,
+          pedidos: agruparVendasPorPedido(vendasDoVendedor).length,
           faturamento,
           margem,
           taxa: v.taxa_comissao * 100,

@@ -28,6 +28,18 @@ export function DashboardAdmin() {
     [vendas, periodo],
   );
 
+  // Regime de caixa: dinheiro que efetivamente entrou no período, não o que
+  // foi vendido — usa `vendas` (histórico inteiro), pois o pagamento pode ter
+  // vindo de uma venda a prazo de um mês anterior.
+  const caixa = useMemo(() => {
+    const pagasNoPeriodo = vendas.filter((v) => v.data_pagamento && noPeriodo(v.data_pagamento, periodo));
+    return {
+      faturamentoReal: pagasNoPeriodo.reduce((a, v) => a + v.valor_total, 0),
+      clientesPrevistos: new Set(vendasDoPeriodo.map((v) => v.comercio_id)).size,
+      clientesReais: new Set(pagasNoPeriodo.map((v) => v.comercio_id)).size,
+    };
+  }, [vendas, vendasDoPeriodo, periodo]);
+
   const m = useMemo(() => {
     const faturamento = vendasDoPeriodo.reduce((a, v) => a + v.valor_total, 0);
     // Se alguma venda tiver custo desconhecido (produto cadastrado sem custo),
@@ -225,6 +237,36 @@ export function DashboardAdmin() {
             valor={fmtBRLCompact(m.ticket)}
             faixa="accent"
             contexto={`${m.pedidos} pedido(s) registrado(s)`}
+          />
+        </div>
+      </div>
+
+      <div>
+        <SectionLabel>Faturamento — Previsto x Realizado</SectionLabel>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            rotulo="Faturamento Previsto"
+            valor={fmtBRLCompact(m.faturamento)}
+            faixa="accent"
+            contexto="Tudo que foi vendido no período, quitado ou não"
+          />
+          <StatCard
+            rotulo="Faturamento Real"
+            valor={fmtBRLCompact(caixa.faturamentoReal)}
+            faixa="good"
+            contexto="Dinheiro que efetivamente entrou no caixa no período"
+          />
+          <StatCard
+            rotulo="Clientes Previstos"
+            valor={String(caixa.clientesPrevistos)}
+            faixa="accent"
+            contexto="Clientes que compraram no período"
+          />
+          <StatCard
+            rotulo="Clientes Reais"
+            valor={String(caixa.clientesReais)}
+            faixa="good"
+            contexto="Clientes que pagaram no período"
           />
         </div>
       </div>

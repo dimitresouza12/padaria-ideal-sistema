@@ -135,9 +135,14 @@ export function FormularioVenda({ aoIrParaLembretes }: { aoIrParaLembretes?: () 
     setSalvando(true);
     const registradas: Venda[] = [];
     const falhas: ItemCarrinho[] = [];
+    // Um id de pedido por carrinho enviado — todo item deste envio compartilha
+    // o mesmo id, então agruparVendasPorPedido() os mantém juntos, mas dois
+    // carrinhos enviados separadamente nunca mais se misturam.
+    const pedidoId = crypto.randomUUID();
     for (const item of itens) {
       try {
         const venda = await registrarVenda({
+          pedido_id: pedidoId,
           vendedor_id: vendedorId,
           comercio_id: comercioId,
           produto_id: item.produto_id,

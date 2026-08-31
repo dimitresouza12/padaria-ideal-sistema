@@ -1,10 +1,9 @@
 import type { Venda } from '@/types';
 
 /**
- * Um "pedido" reconstruído a partir de vendas — o schema não tem id de pedido
- * (cada produto é uma linha própria em `vendas`, ver RegistrarVenda.tsx), mas
- * itens do mesmo carrinho sempre compartilham cliente/vendedor/data/vencimento.
- * Essa chave é suficiente para reagrupar sem migração de banco.
+ * Um "pedido" — todo item com o mesmo `pedido_id` veio do mesmo carrinho
+ * enviado (ver RegistrarVenda.tsx). Pedidos diferentes nunca se misturam,
+ * mesmo quando são do mesmo cliente/vendedor no mesmo dia.
  */
 export interface GrupoPedido {
   chave: string;
@@ -20,21 +19,17 @@ export interface GrupoPedido {
   entregue: boolean;
 }
 
-const chaveDoGrupo = (v: Venda): string =>
-  `${v.comercio_id}|${v.vendedor_id}|${v.data_venda}|${v.data_vencimento ?? ''}`;
-
 export function agruparVendasPorPedido(vendas: Venda[]): GrupoPedido[] {
   const grupos = new Map<string, GrupoPedido>();
   for (const v of vendas) {
-    const chave = chaveDoGrupo(v);
-    const existente = grupos.get(chave);
+    const existente = grupos.get(v.pedido_id);
     if (existente) {
       existente.itens.push(v);
       existente.valor_total += v.valor_total;
       existente.entregue = existente.entregue && v.entregue;
     } else {
-      grupos.set(chave, {
-        chave,
+      grupos.set(v.pedido_id, {
+        chave: v.pedido_id,
         comercio_id: v.comercio_id,
         vendedor_id: v.vendedor_id,
         data_venda: v.data_venda,

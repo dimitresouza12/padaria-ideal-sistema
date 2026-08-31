@@ -364,6 +364,7 @@ export const supabaseApi = {
       await supabase
         .from('vendas')
         .insert({
+          pedido_id: input.pedido_id ?? crypto.randomUUID(),
           vendedor_id: input.vendedor_id,
           comercio_id: input.comercio_id,
           produto_id: input.produto_id,
@@ -379,6 +380,7 @@ export const supabaseApi = {
           data_vencimento,
           status: input.forma_pagamento === 'a_prazo' ? 'pendente' : 'pago',
           entregue: input.forma_pagamento !== 'a_prazo',
+          data_pagamento: input.forma_pagamento === 'a_prazo' ? null : data_venda,
         })
         .select('*')
         .single(),
@@ -424,6 +426,11 @@ export const supabaseApi = {
     } else {
       status = data_vencimento && data_vencimento < HOJE ? 'vencido' : 'pendente';
     }
+    // Mesma lógica de `entregue`: pagamento e venda são o mesmo evento quando
+    // vira à vista; reabrir como pendente limpa a data; ficar pago preserva a
+    // data já registrada (não é um pagamento novo acontecendo agora).
+    const data_pagamento: string | null =
+      status !== 'pago' ? null : input.forma_pagamento === 'a_vista' ? data_venda : vendaAtual.status === 'pago' ? vendaAtual.data_pagamento : HOJE;
 
     const venda = maybe(
       await supabase
@@ -444,6 +451,7 @@ export const supabaseApi = {
           data_vencimento,
           status,
           entregue: input.forma_pagamento !== 'a_prazo' ? true : vendaAtual.entregue,
+          data_pagamento,
         })
         .eq('id', vendaId)
         .select('*')
@@ -464,7 +472,7 @@ export const supabaseApi = {
     const venda = maybe(
       await supabase
         .from('vendas')
-        .update({ status: 'pago' })
+        .update({ status: 'pago', data_pagamento: HOJE })
         .eq('id', vendaId)
         .select('*')
         .maybeSingle(),
@@ -475,7 +483,7 @@ export const supabaseApi = {
   async darBaixaPagamentoEmLote(vendaIds: string[]): Promise<void> {
     const { data, error } = await supabase
       .from('vendas')
-      .update({ status: 'pago' })
+      .update({ status: 'pago', data_pagamento: HOJE })
       .in('id', vendaIds)
       .select('id');
     if (error) throw new Error(error.message);

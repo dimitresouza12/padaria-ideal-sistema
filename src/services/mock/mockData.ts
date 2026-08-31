@@ -239,6 +239,7 @@ function buildVenda(spec: VendaSpec): Venda {
 
   return {
     id: spec.id,
+    pedido_id: `pedido-${spec.id}`,
     vendedor_id: spec.vendedor_id,
     comercio_id: spec.comercio_id,
     produto_id: spec.produto_id,
@@ -254,6 +255,7 @@ function buildVenda(spec: VendaSpec): Venda {
     data_vencimento,
     status,
     entregue: spec.forma_pagamento !== 'a_prazo',
+    data_pagamento: status === 'pago' ? data_venda : null,
     criado_em: new Date(data_venda).toISOString(),
   };
 }
@@ -563,6 +565,7 @@ export const mockApi = {
 
     const venda: Venda = {
       id: uid('v'),
+      pedido_id: input.pedido_id ?? uid('pedido'),
       vendedor_id: input.vendedor_id,
       comercio_id: input.comercio_id,
       produto_id: input.produto_id,
@@ -578,6 +581,7 @@ export const mockApi = {
       data_vencimento,
       status,
       entregue: input.forma_pagamento !== 'a_prazo',
+      data_pagamento: status === 'pago' ? data_venda : null,
       criado_em: new Date().toISOString(),
     };
     db.vendas.push(venda);
@@ -617,6 +621,11 @@ export const mockApi = {
     } else {
       status = data_vencimento && data_vencimento < HOJE ? 'vencido' : 'pendente';
     }
+    // Mesma lógica de `entregue`: pagamento e venda são o mesmo evento quando
+    // vira à vista; reabrir como pendente limpa a data; ficar pago preserva a
+    // data já registrada (não é um pagamento novo acontecendo agora).
+    const data_pagamento: string | null =
+      status !== 'pago' ? null : input.forma_pagamento === 'a_vista' ? data_venda : venda.status === 'pago' ? venda.data_pagamento : HOJE;
 
     Object.assign(venda, {
       vendedor_id: input.vendedor_id,
@@ -634,6 +643,7 @@ export const mockApi = {
       data_vencimento,
       status,
       entregue: input.forma_pagamento !== 'a_prazo' ? true : venda.entregue,
+      data_pagamento,
     });
     persist();
     return delay({ ...venda });
@@ -649,6 +659,7 @@ export const mockApi = {
     const venda = db.vendas.find((v) => v.id === vendaId);
     if (!venda) throw new Error('Venda não encontrada');
     venda.status = 'pago';
+    venda.data_pagamento = HOJE;
     persist();
     return delay(venda);
   },
@@ -656,7 +667,7 @@ export const mockApi = {
     const idsSet = new Set(vendaIds);
     const encontradas = db.vendas.filter((v) => idsSet.has(v.id));
     if (encontradas.length !== vendaIds.length) throw new Error('Venda não encontrada');
-    encontradas.forEach((v) => { v.status = 'pago'; });
+    encontradas.forEach((v) => { v.status = 'pago'; v.data_pagamento = HOJE; });
     persist();
     return delay(undefined);
   },

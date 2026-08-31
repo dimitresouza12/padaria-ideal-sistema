@@ -6,6 +6,7 @@ import { Card, StatCard, ProgressBar, Tag } from '@/components/ui';
 import { fmtBRLCompact, fmtData, fmtPct, primeiroNome } from '@/lib/format';
 import { diasDesde, noPeriodo, rangeDoMes, rotuloMesExtenso } from '@/lib/periodo';
 import { progressoMeta, LABEL_METRICA, metricaEmReais } from '@/lib/metas';
+import { agruparVendasPorPedido } from '@/lib/pedidos';
 
 export function DashboardVendedor() {
   const usuario = useAuthStore((s) => s.usuario)!;
@@ -75,7 +76,7 @@ export function DashboardVendedor() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard rotulo="Vendas do mês" valor={fmtBRLCompact(faturamento)} faixa="accent" contexto={`${minhas.length} pedido(s) registrado(s)`} />
+        <StatCard rotulo="Vendas do mês" valor={fmtBRLCompact(faturamento)} faixa="accent" contexto={`${agruparVendasPorPedido(minhas).length} pedido(s) registrado(s)`} />
         <StatCard
           rotulo="Comissão acumulada"
           valor={fmtBRLCompact(comissao)}

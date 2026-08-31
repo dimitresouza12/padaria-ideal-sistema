@@ -54,6 +54,8 @@ export interface Comercio {
 
 export interface Venda {
   id: string;
+  /** Um pedido = um carrinho enviado; produtos do mesmo carrinho compartilham este id. */
+  pedido_id: string;
   vendedor_id: string;
   comercio_id: string;
   produto_id: string;
@@ -71,6 +73,8 @@ export interface Venda {
   status: StatusVenda;
   /** Independente de `status` (pagamento) — o comércio já recebeu a mercadoria? */
   entregue: boolean;
+  /** Data em que o pagamento efetivamente entrou — null enquanto pendente/vencido. */
+  data_pagamento: string | null;
   criado_em: string;
 }
 
@@ -213,6 +217,8 @@ export interface SolicitacaoAcesso {
 
 /** Payload aceito ao registrar uma venda (o serviço deriva preço/margem/status). */
 export interface NovaVendaInput {
+  /** Compartilhado por todos os itens do mesmo carrinho — se ausente, o service gera um. */
+  pedido_id?: string;
   vendedor_id: string;
   comercio_id: string;
   produto_id: string;

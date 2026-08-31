@@ -4,6 +4,7 @@ import { useUiStore } from '@/store/useUiStore';
 import { Card, StatCard, SectionLabel } from '@/components/ui';
 import { fmtBRL, fmtBRLCompact, fmtPct } from '@/lib/format';
 import { noPeriodo, rangeDoMes, rotuloMesExtenso } from '@/lib/periodo';
+import { agruparVendasPorPedido } from '@/lib/pedidos';
 
 export function Comissoes() {
   const { usuarios, vendas } = useDataStore();
@@ -26,7 +27,7 @@ export function Comissoes() {
         const margemConhecida = vendasDoVendedor.every((v) => v.margem != null);
         const margem = margemConhecida ? vendasDoVendedor.reduce((a, v) => a + (v.margem ?? 0), 0) : null;
         const comissao = faturamento * u.taxa_comissao;
-        return { id: u.id, nome: u.nome, taxa: u.taxa_comissao, pedidos: vendasDoVendedor.length, faturamento, margem, comissao };
+        return { id: u.id, nome: u.nome, taxa: u.taxa_comissao, pedidos: agruparVendasPorPedido(vendasDoVendedor).length, faturamento, margem, comissao };
       })
       .sort((a, b) => b.comissao - a.comissao);
   }, [usuarios, vendas, periodo]);

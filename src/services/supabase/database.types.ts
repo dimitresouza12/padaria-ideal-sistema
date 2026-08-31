@@ -353,6 +353,7 @@ export type Database = {
           comercio_id: string
           criado_em: string
           custo_total: number | null
+          data_pagamento: string | null
           data_vencimento: string | null
           data_venda: string
           entregue: boolean
@@ -360,6 +361,7 @@ export type Database = {
           id: string
           margem: number | null
           modo_preco: Database["public"]["Enums"]["modo_preco"]
+          pedido_id: string
           prazo_dias: number | null
           preco_unitario: number
           produto_id: string
@@ -372,6 +374,7 @@ export type Database = {
           comercio_id: string
           criado_em?: string
           custo_total?: number | null
+          data_pagamento?: string | null
           data_vencimento?: string | null
           data_venda: string
           entregue?: boolean
@@ -379,6 +382,7 @@ export type Database = {
           id?: string
           margem?: number | null
           modo_preco: Database["public"]["Enums"]["modo_preco"]
+          pedido_id?: string
           prazo_dias?: number | null
           preco_unitario: number
           produto_id: string
@@ -391,6 +395,7 @@ export type Database = {
           comercio_id?: string
           criado_em?: string
           custo_total?: number | null
+          data_pagamento?: string | null
           data_vencimento?: string | null
           data_venda?: string
           entregue?: boolean
@@ -398,6 +403,7 @@ export type Database = {
           id?: string
           margem?: number | null
           modo_preco?: Database["public"]["Enums"]["modo_preco"]
+          pedido_id?: string
           prazo_dias?: number | null
           preco_unitario?: number
           produto_id?: string
