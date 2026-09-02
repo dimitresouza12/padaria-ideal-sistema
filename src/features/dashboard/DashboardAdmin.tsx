@@ -28,17 +28,21 @@ export function DashboardAdmin() {
     [vendas, periodo],
   );
 
-  // Regime de caixa: dinheiro que efetivamente entrou no período, não o que
-  // foi vendido — usa `vendas` (histórico inteiro), pois o pagamento pode ter
-  // vindo de uma venda a prazo de um mês anterior.
+  // "Real" = das vendas FEITAS no período, quanto já foi pago até agora —
+  // sempre atribuído ao mês da venda, nunca ao mês em que a baixa aconteceu
+  // (pedido explícito do cliente: uma venda de agosto paga em outubro
+  // continua contando pra agosto, não "foge" pro mês da baixa). Por isso o
+  // filtro é sobre `vendasDoPeriodo` (já filtrado por data_venda), não por
+  // `data_pagamento` — esse campo segue gravado na venda, só não é usado
+  // pra decidir o mês deste indicador.
   const caixa = useMemo(() => {
-    const pagasNoPeriodo = vendas.filter((v) => v.data_pagamento && noPeriodo(v.data_pagamento, periodo));
+    const pagasDoPeriodo = vendasDoPeriodo.filter((v) => v.status === 'pago');
     return {
-      faturamentoReal: pagasNoPeriodo.reduce((a, v) => a + v.valor_total, 0),
+      faturamentoReal: pagasDoPeriodo.reduce((a, v) => a + v.valor_total, 0),
       clientesPrevistos: new Set(vendasDoPeriodo.map((v) => v.comercio_id)).size,
-      clientesReais: new Set(pagasNoPeriodo.map((v) => v.comercio_id)).size,
+      clientesReais: new Set(pagasDoPeriodo.map((v) => v.comercio_id)).size,
     };
-  }, [vendas, vendasDoPeriodo, periodo]);
+  }, [vendasDoPeriodo]);
 
   const m = useMemo(() => {
     const faturamento = vendasDoPeriodo.reduce((a, v) => a + v.valor_total, 0);
@@ -254,7 +258,7 @@ export function DashboardAdmin() {
             rotulo="Faturamento Real"
             valor={fmtBRLCompact(caixa.faturamentoReal)}
             faixa="good"
-            contexto="Dinheiro que efetivamente entrou no caixa no período"
+            contexto="Do que foi vendido no período, quanto já foi pago"
           />
           <StatCard
             rotulo="Clientes Previstos"
@@ -266,7 +270,7 @@ export function DashboardAdmin() {
             rotulo="Clientes Reais"
             valor={String(caixa.clientesReais)}
             faixa="good"
-            contexto="Clientes que pagaram no período"
+            contexto="Clientes do período que já pagaram"
           />
         </div>
       </div>
