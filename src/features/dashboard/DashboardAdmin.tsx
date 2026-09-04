@@ -190,18 +190,7 @@ export function DashboardAdmin() {
       {/* KPIs */}
       <div>
         <SectionLabel>Indicadores do período — {rotuloMesExtenso(periodoMes)}</SectionLabel>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            rotulo="Faturamento"
-            valor={fmtBRLCompact(m.faturamento)}
-            faixa={subiu ? 'good' : 'bad'}
-            contexto={
-              <span className="flex items-center gap-1.5">
-                <Tag tone={subiu ? 'good' : 'bad'}>{subiu ? '▲' : '▼'} {fmtPct(Math.abs(m.deltaPct))}</Tag>
-                vs. mês anterior
-              </span>
-            }
-          />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Card className={`border-l-[3px] p-4 ${!metaDefinida ? 'border-l-line-strong' : acimaMeta ? 'border-l-good' : 'border-l-bad-strong'}`}>
             <div className="text-xs font-semibold text-ink-soft">
               % vs {metaPrincipal?.nome ?? 'Meta do Período'}
@@ -251,8 +240,13 @@ export function DashboardAdmin() {
           <StatCard
             rotulo="Faturamento Previsto"
             valor={fmtBRLCompact(m.faturamento)}
-            faixa="accent"
-            contexto="Tudo que foi vendido no período, quitado ou não"
+            faixa={subiu ? 'good' : 'bad'}
+            contexto={
+              <span className="flex items-center gap-1.5">
+                <Tag tone={subiu ? 'good' : 'bad'}>{subiu ? '▲' : '▼'} {fmtPct(Math.abs(m.deltaPct))}</Tag>
+                vs. mês anterior
+              </span>
+            }
           />
           <StatCard
             rotulo="Faturamento Real"

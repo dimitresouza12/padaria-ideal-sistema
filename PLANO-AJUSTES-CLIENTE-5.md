@@ -84,4 +84,19 @@ começou em R$0 (Clientes Reais 0); dada a baixa (que no mock acontece na data f
 28/07), o Faturamento Real de **junho** passou a refletir o valor pago, e o de **julho**
 permaneceu inalterado — confirma que o valor não "foge" para o mês da baixa.
 
-Rodada 5 completa (com correção pós-feedback do cliente).
+### 2.2 Ajuste pós-feedback — remove o card "Faturamento" duplicado
+
+Cliente mandou vídeo (03/09) reclamando que uma venda ainda não entregue nem paga aparecia
+"como se fosse real" — a análise dos frames do vídeo mostrou que o card **"Faturamento Real"**
+já estava correto (R$0), mas o card antigo **"Faturamento"** (topo da tela, existente desde as
+primeiras rodadas, sempre por competência) mostrava o mesmo valor do "Faturamento Previsto" sem
+deixar claro que não era dinheiro confirmado — o cliente estava lendo aquele número de cima como
+se já fosse "real". Ou seja: não era bug de cálculo, era duplicação/ambiguidade de rótulo criada
+ao introduzir a seção "Previsto x Realizado" sem remover o card antigo.
+
+Correção: removido o card "Faturamento" de "Indicadores do período" (a seção passa a ter 3
+cards — % vs Meta, Margem, Ticket Médio); o contexto de variação (▲/▼ vs. mês anterior) que
+vivia nesse card foi movido para o "Faturamento Previsto", que já mostrava o mesmo valor. Nenhum
+cálculo mudou — só a organização da tela, eliminando o número duplicado que causava a confusão.
+
+Rodada 5 completa (com duas correções pós-feedback do cliente).
