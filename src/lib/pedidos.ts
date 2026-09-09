@@ -17,6 +17,8 @@ export interface GrupoPedido {
   status: Venda['status'];
   /** true só quando todo item do pedido já foi marcado como entregue. */
   entregue: boolean;
+  /** Data em que o pedido foi marcado como entregue — null enquanto `entregue` for false. */
+  entregue_em: string | null;
 }
 
 export function agruparVendasPorPedido(vendas: Venda[]): GrupoPedido[] {
@@ -27,6 +29,7 @@ export function agruparVendasPorPedido(vendas: Venda[]): GrupoPedido[] {
       existente.itens.push(v);
       existente.valor_total += v.valor_total;
       existente.entregue = existente.entregue && v.entregue;
+      existente.entregue_em = existente.entregue_em ?? v.entregue_em;
     } else {
       grupos.set(v.pedido_id, {
         chave: v.pedido_id,
@@ -38,6 +41,7 @@ export function agruparVendasPorPedido(vendas: Venda[]): GrupoPedido[] {
         valor_total: v.valor_total,
         status: v.status,
         entregue: v.entregue,
+        entregue_em: v.entregue_em,
       });
     }
   }

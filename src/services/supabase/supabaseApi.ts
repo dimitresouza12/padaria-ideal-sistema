@@ -380,6 +380,7 @@ export const supabaseApi = {
           data_vencimento,
           status: input.forma_pagamento === 'a_prazo' ? 'pendente' : 'pago',
           entregue: input.forma_pagamento !== 'a_prazo',
+          entregue_em: input.forma_pagamento === 'a_prazo' ? null : data_venda,
           data_pagamento: input.forma_pagamento === 'a_prazo' ? null : data_venda,
         })
         .select('*')
@@ -451,6 +452,7 @@ export const supabaseApi = {
           data_vencimento,
           status,
           entregue: input.forma_pagamento !== 'a_prazo' ? true : vendaAtual.entregue,
+          entregue_em: input.forma_pagamento !== 'a_prazo' ? data_venda : vendaAtual.entregue_em,
           data_pagamento,
         })
         .eq('id', vendaId)
@@ -492,7 +494,7 @@ export const supabaseApi = {
   async marcarEntregueEmLote(vendaIds: string[]): Promise<void> {
     const { data, error } = await supabase
       .from('vendas')
-      .update({ entregue: true })
+      .update({ entregue: true, entregue_em: HOJE })
       .in('id', vendaIds)
       .select('id');
     if (error) throw new Error(error.message);

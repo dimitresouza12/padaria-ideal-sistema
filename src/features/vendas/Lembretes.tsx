@@ -4,6 +4,7 @@ import { useDataStore } from '@/store/useDataStore';
 import { useToastStore } from '@/store/useToastStore';
 import { Card, Button, Tag, EmptyState } from '@/components/ui';
 import { fmtBRL, fmtBRLCompact, fmtData } from '@/lib/format';
+import { diasDesde } from '@/lib/periodo';
 import { agruparVendasPorPedido, type GrupoPedido } from '@/lib/pedidos';
 
 export function Lembretes() {
@@ -33,6 +34,10 @@ export function Lembretes() {
 
   const nomeComercio = (id: string) => comercios.find((c) => c.id === id)?.razao_social ?? '—';
   const nomeVendedor = (id: string) => usuarios.find((u) => u.id === id)?.nome ?? '—';
+  // null quando o pedido foi marcado como entregue antes desta data existir
+  // (histórico sem essa informação) — nesse caso só mostra a Tag, sem legenda.
+  const legendaEntrega = (entregue_em: string | null) =>
+    entregue_em ? `${fmtData(entregue_em)} · há ${diasDesde(entregue_em)} dia(s)` : null;
   const nomeProduto = (id: string) => produtos.find((p) => p.id === id)?.nome ?? '—';
 
   const onDarBaixa = async (grupo: GrupoPedido) => {
@@ -120,6 +125,9 @@ export function Lembretes() {
                           <div className="flex flex-col items-start gap-1">
                             {g.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
                             {g.entregue ? <Tag tone="good">Entregue</Tag> : <Tag tone="neutral">Não entregue</Tag>}
+                            {g.entregue && legendaEntrega(g.entregue_em) && (
+                              <span className="text-[11px] text-ink-muted">{legendaEntrega(g.entregue_em)}</span>
+                            )}
                           </div>
                         </td>
                         <td className="px-5 py-3 text-right">
@@ -183,6 +191,9 @@ export function Lembretes() {
                   <div className="flex flex-col items-end gap-1">
                     {g.status === 'vencido' ? <Tag tone="bad">Vencido</Tag> : <Tag tone="warn">Pendente</Tag>}
                     {g.entregue ? <Tag tone="good">Entregue</Tag> : <Tag tone="neutral">Não entregue</Tag>}
+                    {g.entregue && legendaEntrega(g.entregue_em) && (
+                      <span className="text-[11px] text-ink-muted">{legendaEntrega(g.entregue_em)}</span>
+                    )}
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-ink-muted">

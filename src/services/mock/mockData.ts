@@ -255,6 +255,7 @@ function buildVenda(spec: VendaSpec): Venda {
     data_vencimento,
     status,
     entregue: spec.forma_pagamento !== 'a_prazo',
+    entregue_em: spec.forma_pagamento !== 'a_prazo' ? data_venda : null,
     data_pagamento: status === 'pago' ? data_venda : null,
     criado_em: new Date(data_venda).toISOString(),
   };
@@ -581,6 +582,7 @@ export const mockApi = {
       data_vencimento,
       status,
       entregue: input.forma_pagamento !== 'a_prazo',
+      entregue_em: input.forma_pagamento !== 'a_prazo' ? data_venda : null,
       data_pagamento: status === 'pago' ? data_venda : null,
       criado_em: new Date().toISOString(),
     };
@@ -643,6 +645,7 @@ export const mockApi = {
       data_vencimento,
       status,
       entregue: input.forma_pagamento !== 'a_prazo' ? true : venda.entregue,
+      entregue_em: input.forma_pagamento !== 'a_prazo' ? data_venda : venda.entregue_em,
       data_pagamento,
     });
     persist();
@@ -675,7 +678,7 @@ export const mockApi = {
     const idsSet = new Set(vendaIds);
     const encontradas = db.vendas.filter((v) => idsSet.has(v.id));
     if (encontradas.length !== vendaIds.length) throw new Error('Venda não encontrada');
-    encontradas.forEach((v) => { v.entregue = true; });
+    encontradas.forEach((v) => { v.entregue = true; v.entregue_em = HOJE; });
     persist();
     return delay(undefined);
   },

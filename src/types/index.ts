@@ -73,6 +73,8 @@ export interface Venda {
   status: StatusVenda;
   /** Independente de `status` (pagamento) — o comércio já recebeu a mercadoria? */
   entregue: boolean;
+  /** Data em que foi marcado como entregue — null enquanto `entregue` for false. */
+  entregue_em: string | null;
   /** Data em que o pagamento efetivamente entrou — null enquanto pendente/vencido. */
   data_pagamento: string | null;
   criado_em: string;

@@ -357,6 +357,7 @@ export type Database = {
           data_vencimento: string | null
           data_venda: string
           entregue: boolean
+          entregue_em: string | null
           forma_pagamento: Database["public"]["Enums"]["forma_pagamento"]
           id: string
           margem: number | null
@@ -378,6 +379,7 @@ export type Database = {
           data_vencimento?: string | null
           data_venda: string
           entregue?: boolean
+          entregue_em?: string | null
           forma_pagamento: Database["public"]["Enums"]["forma_pagamento"]
           id?: string
           margem?: number | null
@@ -399,6 +401,7 @@ export type Database = {
           data_vencimento?: string | null
           data_venda?: string
           entregue?: boolean
+          entregue_em?: string | null
           forma_pagamento?: Database["public"]["Enums"]["forma_pagamento"]
           id?: string
           margem?: number | null
