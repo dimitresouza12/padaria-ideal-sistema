@@ -161,16 +161,6 @@ export function Lembretes() {
                             {g.entregue && legendaEntrega(g.entregue_em) && (
                               <span className="text-[11px] text-ink-muted">{legendaEntrega(g.entregue_em)}</span>
                             )}
-                            {g.entregue && (
-                              <button
-                                type="button"
-                                disabled={desmarcando === g.chave}
-                                onClick={() => setAlvoDesmarcar(g)}
-                                className="-mx-2 -my-1 px-2 py-1 text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
-                              >
-                                {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
-                              </button>
-                            )}
                           </div>
                         </td>
                         <td className="px-5 py-3 text-right">
@@ -184,6 +174,16 @@ export function Lembretes() {
                                   onClick={() => void onMarcarEntregue(g)}
                                 >
                                   {entregando === g.chave ? 'Marcando…' : 'Marcar Entregue'}
+                                </Button>
+                              )}
+                              {g.entregue && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={desmarcando === g.chave}
+                                  onClick={() => setAlvoDesmarcar(g)}
+                                >
+                                  {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
                                 </Button>
                               )}
                               <Button
@@ -237,16 +237,6 @@ export function Lembretes() {
                     {g.entregue && legendaEntrega(g.entregue_em) && (
                       <span className="text-[11px] text-ink-muted">{legendaEntrega(g.entregue_em)}</span>
                     )}
-                    {g.entregue && (
-                      <button
-                        type="button"
-                        disabled={desmarcando === g.chave}
-                        onClick={() => setAlvoDesmarcar(g)}
-                        className="-mx-2 -my-1 px-2 py-1 text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
-                      >
-                        {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
-                      </button>
-                    )}
                   </div>
                 </div>
                 <div className="mt-2 text-xs text-ink-muted">
@@ -287,15 +277,28 @@ export function Lembretes() {
                     {entregando === g.chave ? 'Marcando…' : 'Marcar Entregue'}
                   </Button>
                 )}
-                <Button
-                  variant="good"
-                  size="sm"
-                  className="mt-2 w-full"
-                  disabled={!g.entregue || baixando === g.chave}
-                  onClick={() => void onDarBaixa(g)}
-                >
-                  {baixando === g.chave ? 'Confirmando…' : 'Dar Baixa'}
-                </Button>
+                <div className="mt-2 flex gap-2">
+                  {g.entregue && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1"
+                      disabled={desmarcando === g.chave}
+                      onClick={() => setAlvoDesmarcar(g)}
+                    >
+                      {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
+                    </Button>
+                  )}
+                  <Button
+                    variant="good"
+                    size="sm"
+                    className="flex-1"
+                    disabled={!g.entregue || baixando === g.chave}
+                    onClick={() => void onDarBaixa(g)}
+                  >
+                    {baixando === g.chave ? 'Confirmando…' : 'Dar Baixa'}
+                  </Button>
+                </div>
                 {!g.entregue && (
                   <div className="mt-1.5 text-center text-[11px] text-ink-muted">Marque como entregue para liberar</div>
                 )}
