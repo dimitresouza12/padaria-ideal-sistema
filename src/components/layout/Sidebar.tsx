@@ -26,7 +26,7 @@ export function Sidebar() {
           sidebarAberta ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center gap-3 border-b border-line px-5 py-5">
+        <div className="flex h-[69px] items-center gap-3 border-b border-line px-5">
           <img src="/logo-wheat-icon.png" alt="" className="h-9 w-auto" />
           <div>
             <div className="text-[13.5px] font-bold leading-tight">Padaria Ideal</div>

@@ -166,7 +166,7 @@ export function Lembretes() {
                                 type="button"
                                 disabled={desmarcando === g.chave}
                                 onClick={() => setAlvoDesmarcar(g)}
-                                className="text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
+                                className="-mx-2 -my-1 px-2 py-1 text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
                               >
                                 {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
                               </button>
@@ -242,7 +242,7 @@ export function Lembretes() {
                         type="button"
                         disabled={desmarcando === g.chave}
                         onClick={() => setAlvoDesmarcar(g)}
-                        className="text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
+                        className="-mx-2 -my-1 px-2 py-1 text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
                       >
                         {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
                       </button>

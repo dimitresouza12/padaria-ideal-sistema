@@ -27,7 +27,7 @@ export function Header() {
   const ehMesAtual = periodoMes === mesAtualISO();
 
   return (
-    <header className="flex flex-nowrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-3.5 lg:px-7">
+    <header className="flex h-[69px] flex-nowrap items-center justify-between gap-3 border-b border-line bg-white px-5 lg:px-7">
       <div className="flex min-w-0 items-center gap-3">
         <button
           onClick={toggleSidebar}
