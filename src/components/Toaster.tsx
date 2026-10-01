@@ -21,13 +21,27 @@ export function Toaster() {
           className={`toast-in pointer-events-auto flex items-center justify-between gap-3 rounded-xl border border-l-[3px] border-line bg-surface px-4 py-3 shadow-cardlg ${bordaPorTom[t.tom]}`}
         >
           <span className="text-[13px] font-semibold text-ink">{t.mensagem}</span>
-          <button
-            type="button"
-            onClick={() => remover(t.id)}
-            className="text-[11px] font-bold uppercase tracking-wider text-ink-muted transition hover:text-ink"
-          >
-            Fechar
-          </button>
+          <div className="flex items-center gap-3">
+            {t.acao && (
+              <button
+                type="button"
+                onClick={() => {
+                  t.acao!.aoClicar();
+                  remover(t.id);
+                }}
+                className="text-[11px] font-bold uppercase tracking-wider text-accent-dark transition hover:underline"
+              >
+                {t.acao.rotulo}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => remover(t.id)}
+              className="text-[11px] font-bold uppercase tracking-wider text-ink-muted transition hover:text-ink"
+            >
+              Fechar
+            </button>
+          </div>
         </div>
       ))}
     </div>

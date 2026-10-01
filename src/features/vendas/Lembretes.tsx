@@ -12,10 +12,12 @@ export function Lembretes() {
   const { vendas, comercios, usuarios, produtos } = useDataStore();
   const darBaixaEmLote = useDataStore((s) => s.darBaixaEmLote);
   const marcarEntregue = useDataStore((s) => s.marcarEntregue);
+  const desmarcarEntregue = useDataStore((s) => s.desmarcarEntregue);
   const notificar = useToastStore((s) => s.notificar);
   const [expandido, setExpandido] = useState<string | null>(null);
   const [baixando, setBaixando] = useState<string | null>(null);
   const [entregando, setEntregando] = useState<string | null>(null);
+  const [desmarcando, setDesmarcando] = useState<string | null>(null);
 
   const lista = useMemo(() => {
     return vendas
@@ -55,12 +57,36 @@ export function Lembretes() {
   const onMarcarEntregue = async (grupo: GrupoPedido) => {
     setEntregando(grupo.chave);
     try {
-      await marcarEntregue(grupo.itens.map((v) => v.id));
-      notificar('Pedido marcado como entregue.');
+      const ids = grupo.itens.map((v) => v.id);
+      await marcarEntregue(ids);
+      notificar('Pedido marcado como entregue.', 'good', {
+        duracaoMs: 10_000,
+        acao: {
+          rotulo: 'Desfazer',
+          aoClicar: () => {
+            void desmarcarEntregue(ids).then(
+              () => notificar('Marcação desfeita.'),
+              () => notificar('Não foi possível desfazer. Verifique sua conexão e tente novamente.', 'bad'),
+            );
+          },
+        },
+      });
     } catch {
       notificar('Não foi possível marcar como entregue. Verifique sua conexão e tente novamente.', 'bad');
     } finally {
       setEntregando(null);
+    }
+  };
+
+  const onDesmarcarEntregue = async (grupo: GrupoPedido) => {
+    setDesmarcando(grupo.chave);
+    try {
+      await desmarcarEntregue(grupo.itens.map((v) => v.id));
+      notificar('Marcação de entregue desfeita.');
+    } catch {
+      notificar('Não foi possível desfazer. Verifique sua conexão e tente novamente.', 'bad');
+    } finally {
+      setDesmarcando(null);
     }
   };
 
@@ -128,6 +154,16 @@ export function Lembretes() {
                             {g.entregue && legendaEntrega(g.entregue_em) && (
                               <span className="text-[11px] text-ink-muted">{legendaEntrega(g.entregue_em)}</span>
                             )}
+                            {g.entregue && (
+                              <button
+                                type="button"
+                                disabled={desmarcando === g.chave}
+                                onClick={() => void onDesmarcarEntregue(g)}
+                                className="text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
+                              >
+                                {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td className="px-5 py-3 text-right">
@@ -193,6 +229,16 @@ export function Lembretes() {
                     {g.entregue ? <Tag tone="good">Entregue</Tag> : <Tag tone="neutral">Não entregue</Tag>}
                     {g.entregue && legendaEntrega(g.entregue_em) && (
                       <span className="text-[11px] text-ink-muted">{legendaEntrega(g.entregue_em)}</span>
+                    )}
+                    {g.entregue && (
+                      <button
+                        type="button"
+                        disabled={desmarcando === g.chave}
+                        onClick={() => void onDesmarcarEntregue(g)}
+                        className="text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
+                      >
+                        {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
+                      </button>
                     )}
                   </div>
                 </div>

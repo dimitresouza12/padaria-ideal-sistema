@@ -500,6 +500,15 @@ export const supabaseApi = {
     if (error) throw new Error(error.message);
     if (!data || data.length !== vendaIds.length) throw new Error('Venda não encontrada');
   },
+  async desmarcarEntregueEmLote(vendaIds: string[]): Promise<void> {
+    const { data, error } = await supabase
+      .from('vendas')
+      .update({ entregue: false, entregue_em: null })
+      .in('id', vendaIds)
+      .select('id');
+    if (error) throw new Error(error.message);
+    if (!data || data.length !== vendaIds.length) throw new Error('Venda não encontrada');
+  },
   async listarAlertas(): Promise<AlertaPagamento[]> {
     await normalizarVencidos();
     const abertos = rows(

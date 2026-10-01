@@ -49,6 +49,7 @@ interface DataState {
   darBaixa: (vendaId: string) => Promise<void>;
   darBaixaEmLote: (vendaIds: string[]) => Promise<void>;
   marcarEntregue: (vendaIds: string[]) => Promise<void>;
+  desmarcarEntregue: (vendaIds: string[]) => Promise<void>;
 
   registrarPerda: (input: NovaPerdaInput) => Promise<Perda>;
   removerPerda: (id: string) => Promise<void>;
@@ -148,6 +149,11 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   marcarEntregue: async (vendaIds) => {
     await api.marcarEntregueEmLote(vendaIds);
+    set({ vendas: await api.listarVendas() });
+  },
+
+  desmarcarEntregue: async (vendaIds) => {
+    await api.desmarcarEntregueEmLote(vendaIds);
     set({ vendas: await api.listarVendas() });
   },
 
