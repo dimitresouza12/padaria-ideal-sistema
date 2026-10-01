@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useDataStore } from '@/store/useDataStore';
 import { useToastStore } from '@/store/useToastStore';
-import { Card, Button, Tag, EmptyState } from '@/components/ui';
+import { Card, Button, Tag, EmptyState, ConfirmModal } from '@/components/ui';
 import { fmtBRL, fmtBRLCompact, fmtData } from '@/lib/format';
 import { diasDesde } from '@/lib/periodo';
 import { agruparVendasPorPedido, type GrupoPedido } from '@/lib/pedidos';
@@ -18,6 +18,7 @@ export function Lembretes() {
   const [baixando, setBaixando] = useState<string | null>(null);
   const [entregando, setEntregando] = useState<string | null>(null);
   const [desmarcando, setDesmarcando] = useState<string | null>(null);
+  const [alvoDesmarcar, setAlvoDesmarcar] = useState<GrupoPedido | null>(null);
 
   const lista = useMemo(() => {
     return vendas
@@ -90,6 +91,12 @@ export function Lembretes() {
     }
   };
 
+  const confirmarDesmarcarEntregue = async () => {
+    if (!alvoDesmarcar) return;
+    await onDesmarcarEntregue(alvoDesmarcar);
+    setAlvoDesmarcar(null);
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -158,7 +165,7 @@ export function Lembretes() {
                               <button
                                 type="button"
                                 disabled={desmarcando === g.chave}
-                                onClick={() => void onDesmarcarEntregue(g)}
+                                onClick={() => setAlvoDesmarcar(g)}
                                 className="text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
                               >
                                 {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
@@ -234,7 +241,7 @@ export function Lembretes() {
                       <button
                         type="button"
                         disabled={desmarcando === g.chave}
-                        onClick={() => void onDesmarcarEntregue(g)}
+                        onClick={() => setAlvoDesmarcar(g)}
                         className="text-[11px] font-semibold text-accent-dark underline-offset-2 hover:underline disabled:opacity-50"
                       >
                         {desmarcando === g.chave ? 'Desmarcando…' : 'Desmarcar entrega'}
@@ -297,6 +304,21 @@ export function Lembretes() {
           </div>
         </>
       )}
+
+      <ConfirmModal
+        aberto={alvoDesmarcar !== null}
+        titulo="Desmarcar entrega"
+        mensagem={
+          <>
+            Desmarcar <b>{alvoDesmarcar ? nomeComercio(alvoDesmarcar.comercio_id) : ''}</b> como entregue? O pedido
+            volta a aparecer como não entregue e "Dar Baixa" fica bloqueado de novo até marcar entregue outra vez.
+          </>
+        }
+        onCancelar={() => setAlvoDesmarcar(null)}
+        confirmando={alvoDesmarcar !== null && desmarcando === alvoDesmarcar.chave}
+        textoConfirmar="Desmarcar"
+        onConfirmar={() => void confirmarDesmarcarEntregue()}
+      />
     </div>
   );
 }

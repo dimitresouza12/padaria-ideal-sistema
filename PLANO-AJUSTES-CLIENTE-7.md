@@ -32,4 +32,23 @@ confirmação "Marcação desfeita."); independentemente do toast, o link "Desma
 própria linha reverte do mesmo jeito a qualquer momento. Build limpo; `api.ts` revertido pro
 Supabase antes do commit.
 
+## Confirmação antes de desmarcar — ✅ CORRIGIDO E TESTADO
+
+Dimitre pediu, ainda na mesma rodada: "acho que seria interessante quando clicasse pra
+desmarcar como entregue, tivesse que confirmar, pois acredito que na correria do dia a dia a
+pessoa pode vir a se enganar."
+
+Aplicado só ao link permanente "Desmarcar entrega" (clique avulso, fora do contexto de quem
+acabou de marcar) — o botão "Desfazer" do toast de 10s continua direto, porque já é reação
+imediata à própria ação que a pessoa acabou de fazer, não um clique solto no meio do dia.
+Reaproveitado o `ConfirmModal` já usado em Produtos/Comércios/Perdas/Metas/Histórico (mesmo
+padrão do projeto, não um confirm() nativo do navegador). Clicar em "Desmarcar entrega" abre
+o modal com o nome do cliente; só desfaz a marcação depois de "Desmarcar" confirmado.
+
+Testado ao vivo (mock local): clique abre o modal com o nome correto do comércio; "Cancelar"
+fecha sem alterar nada (pedido continua "Entregue"); "Desmarcar" executa a ação, mostra
+"Removendo…" durante a chamada, fecha o modal e dispara o toast "Marcação de entregue
+desfeita." — pedido volta a "Não entregue". `tsc --noEmit` e `npm run build` limpos; `api.ts`
+revertido pro Supabase antes do commit.
+
 Rodada 7 completa.
